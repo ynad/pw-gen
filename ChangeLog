@@ -1,0 +1,34 @@
+Version 1.2.0 (changes from 1.1.0) - Released 21/03/2014:
+* Multi-core CPU support: use of FORKs (Linux only)
+* Pipe for interprocess comunication
+* Performance efficiency 
+* Optimized different functions for generations types
+
+Version 1.1.0 (changes from 1.0.0) - Released 18/03/2014:
+* Multi-core CPU support: use of PTHREAD library (Linux only) - deprecated (heavy read/write conflicts on threads' shared memory)
+* Windows compatibilty
+
+Version 1.0.0 - Released 14/03/2014:
+* New complete code rewrite
+* Characters set from file
+* Signal handler (Linux only)
+* Sequence lenght from arguments
+* Modularity
+* Limited set of characters, select from arguments
+
+---
+
+Version 0.4.0 (changes from 0.3.0) - Released 16/07/2013 (D's work):
+* experimental: interruption and recovery
+
+Version 0.3.0 (changes from 0.2.0) - Released xx/06/2013 (D's work):
+* Iterative generation - deprecated
+
+Version 0.2.0 (changes from 0.1.0) - Released 03/06/2013:
+* Special characters (partial) and capital letters
+* Many fixes
+
+Version 0.1.0 - Released 01/06/2013:
+* Initial project started
+* Basic recursive generation
+* Run time measurements

@@ -1,0 +1,54 @@
+Pw-Gen - Sequences generator
+============================
+
+Version:
+--------
+1.2.0 (2014-03-21)
+See ChangeLog for details. 
+
+    TODO:
+    - proper arg checks
+    - verbose mode
+    - use of wchar.h
+    - status save and restart
+    - big files support
+    - big files split
+    - iterative version!
+    - version check
+    - separated generatorSingle for mode 1 & 2
+
+    BUGS:
+	
+
+
+Description:
+------------
+
+Sequences generator: recursive generation of all alphanumeric sequences, to use with brute-force tools.
+
+
+Installation:
+-------------
+Linux:
+  System requirements: build-essential ('make' and 'gcc').
+
+  - Compile:
+      `make`
+
+  - Compile and install:
+      `make install`
+
+  - Remove only objects:
+      `make clean`
+
+  - Uninstall:
+      `make uninstall`
+
+Windows:
+  Compile "src\pw-gen.c" with any software you prefer, then run from Windows CMD.
+
+
+Author:
+-------
+ynad (github.com/ynad/)
+
