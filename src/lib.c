@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-03]
+   Revision    [2014-04-15]
 
 ******************************************************************************/
 
@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 #ifdef __linux__
     #include <unistd.h>
@@ -39,6 +40,10 @@
 #include "pw-gen.h"
 /* Library functions header */
 #include "lib.h"
+
+//URL to repo and file containing version info
+#define REPO "github.com/ynad/pw-gen/"
+#define URLVERS "https://raw.github.com/ynad/pw-gen/master/VERSION"
 
 
 /* Clear memory and other stuff */
@@ -83,6 +88,53 @@ inline int procNumb()
 	//fprintf(stderr, "Could not determine number of CPUs.\n");
 	return -1;
 #endif
+}
+
+
+/* Check current version with info on online repo */
+inline int checkVersion()
+{
+	char cmd[BUFF], vers[BUFF], build[BUFF];
+	FILE *fp;
+
+	//clear error value
+	errno = 0;
+
+	//download file
+	sprintf(cmd, "wget %s -O /tmp/VERSION -q", URLVERS);
+	if (system(cmd) == -1) {
+		fprintf(stderr, "Error executing system call: %s\n", strerror(errno));
+		return (EXIT_FAILURE);
+	}
+
+	if ((fp = fopen("/tmp/VERSION", "r")) == NULL) {
+		fprintf(stderr, "Error reading from file \"%s\": %s\n", "/tmp/VERSION", strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	if (fscanf(fp, "%s %s", vers, build) != 2) {
+		fprintf(stderr, "No data collected or no internet connection.\n\n");
+		vers[0] = '-';
+		vers[1] = '\0';
+		build[0] = '-';
+		build[1] = '\0';
+	}
+	else {
+		if (strcmp(vers, VERS) < 0 || (strcmp(vers, VERS) == 0 && strcmp(build, BUILD) < 0)) {
+			fprintf(stdout, "Newer version is in use (local: %s [%s], repo: %s [%s]).\n\n", VERS, BUILD, vers, build);
+		}
+		else if (strcmp(vers, VERS) == 0 && strcmp(build, BUILD) == 0) {
+			fprintf(stdout, "Up-to-date version is in use (%s [%s]).\n\n", VERS, BUILD);
+		}
+		else {
+			fprintf(stdout, "Version in use: %s (%s), available: %s (%s)\nCheck \"%s\" for updates!\n\n", VERS, BUILD, vers, build, REPO);
+		}
+	}
+	fclose(fp);
+	if (system("rm -f /tmp/VERSION") == -1) {
+		fprintf(stderr, "Error executing system call: %s\n", strerror(errno));
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
 }
 
 
@@ -171,14 +223,46 @@ inline void semDestroy(int *s)
 /* Signals handler */
 void sigHandler(int sig)
 {
-	if (sig == SIGINT && sigFlag == TRUE)
-		fprintf(stderr, "\nReceived signal SIGINT (%d): exiting.\n", sig);
+	int i;
+	struct timespec ts1, ts2;
 
-	//pre-exit stuff
-	freeExit();
+	//Ctrl-C: whole program exits
+	if (sig == SIGINT) {
+		if (sigFlag == TRUE)
+			fprintf(stderr, "\nReceived signal SIGINT (%d): exiting.\n", sig);
+	
+		//pre-exit stuff
+		freeExit();
 
-	//exit
-	exit (EXIT_FAILURE);
+		//reset sigHandler and exit
+		signal(SIGINT, SIG_DFL);
+		raise(SIGINT);
+	}
+	//Ctrl-\: whole program suspends
+	else if (sig == SIGQUIT) {
+		//store time for further evaluation
+		clock_gettime(CLOCK_MONOTONIC, &ts1);
+		//father process wait for user input and wake all childs
+		if (sigFlag == TRUE) {
+			fprintf(stderr, "\nReceived signal SIGQUIT (%d).\n", sig);
+			fprintf(stderr, "Program suspended, press any key to continue...\n");
+			getchar();
+			fprintf(stderr, "Program restored...\n");
+			//semaphore signal
+			for (i=0; i<forks; i++)
+				semSignal(sigSem);
+			clock_gettime(CLOCK_MONOTONIC, &ts2);
+			lag = SUMTIME(ts2, ts1);
+			
+		}
+		//childs wait for father signal
+		else {
+			//semaphore wait
+			semWait(sigSem);
+			clock_gettime(CLOCK_MONOTONIC, &ts2);
+			lag = SUMTIME(ts2, ts1);
+		}
+	}
 }
 
 #endif

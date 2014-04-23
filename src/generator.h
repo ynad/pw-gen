@@ -9,11 +9,11 @@
    Description [generator of alphanumeric sequences,
    to use with brute-force tools]
 
-   Author      [ynad]
+   Author      [ynad, Diego]
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-03]
+   Revision    [2014-04-10]
 
 ******************************************************************************/
 
@@ -22,20 +22,23 @@
 #define GENERATOR_H_INCLUDED
 
 
-/* Basic recursive generator */
-void generatorSingle(unsigned char);
+/* Recursive generator - Single thread */
+void generatorSingleR(unsigned char);
 
-/* Iterative single generator - UNDER DEVELOPMENT */
-inline void generatorSingleI();
+/* Iterative generator - Single thread - By Diego */
+inline void generatorSingleI(unsigned char);
 
 /* Recursive generator - CALC only */
-void generatorCalc(unsigned char);
+void generatorCalcR(unsigned char);
 
 /* Recursive generator - WRITE to file */
-void generatorWrite(unsigned char);
+void generatorWriteR(unsigned char);
 
-/* Iterative generator - By D - EXPERIMENTAL */
-inline void generatorIterative(void);
+/* Iterative generator - CALC only - Based on Diego's */
+inline void generatorCalcI(unsigned char);
+
+/* Iterative generator - WRITE to file - Based on Diego's */
+inline void generatorWriteI(unsigned char);
 
 
 #endif // GENERATOR_H_INCLUDED

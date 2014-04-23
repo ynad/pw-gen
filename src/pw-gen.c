@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-04]
+   Revision    [2014-04-17]
 
 ******************************************************************************/
 
@@ -50,14 +50,9 @@
 #include "generator.h"
 
 
-/* Macros */
-#define SUMTIME(tsEnd, tsBegin) (((double)tsEnd.tv_sec + (double)tsEnd.tv_nsec/NANO) - ((double)tsBegin.tv_sec + (double)tsBegin.tv_nsec/NANO))
-
-
 /** Global variables **/
 /* len=sequence lenght, nchars=number of character on current set (chars)
    left=left index of chars subset, right=right index of chars subset,
-   procs=number of core (thus processes to start)
  */
 int len, nchars, left, right;
 double numSeq;      //counter for calculated sequences
@@ -66,8 +61,8 @@ FILE *fout;
 
 #ifdef __linux__
 struct timespec tsBegin, tsEnd;   //monolitic time counter
-double calcTime;    //store calculation time
-int sigFlag;
+double calcTime, lag;    //store calculation time and lag time (for process suspension)
+int sigFlag, forks, sigSem[2], fileSem[2];    //sigFlag=flag for father process, forks=number of processes, sigSem=pipe semaphore for signal handler, fileSem=pipe semaphore for file writes
 #elif defined WINZOZ
 float timeBegin, timeEnd;   //time counter
 #endif
@@ -83,6 +78,7 @@ char chars[]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q
 
 /* Local prototypes */
 static inline void forkProc(int, void (*generator)(unsigned char));
+static inline void printHeader();
 static inline void printSyntax(char *);
 static inline void argCheck(int, char **);
 static inline int readChars();
@@ -101,6 +97,9 @@ int main(int argc, char *argv[])
 	signal(SIGINT, sigHandler);
 #endif
 
+	//print program header
+	printHeader();
+
 	//arguments check
 	argCheck(argc, argv);
 
@@ -116,10 +115,9 @@ int main(int argc, char *argv[])
 
 	//start generation
 	if (mode == 1)
-		forkProc(procs, generatorWrite);
+		forkProc(procs, generatorWriteI);
 	else
-		forkProc(procs, generatorCalc);
-	//numSeq = pow(nchars, len);
+		forkProc(procs, generatorCalcI);
 
 	//results output
 	printResults();
@@ -134,28 +132,41 @@ static inline void forkProc(int procs, void (*generator)(unsigned char))
 {
 #ifdef WINZOZ
 	timeBegin = ((float)clock())/CLOCKS_PER_SEC;
-	generatorSingle(0);
+	generatorSingleI(0);
 	timeEnd = ((float)clock())/CLOCKS_PER_SEC;
 #elif defined __linux__
 
-	int i, gap, rest, forks, pDescr[2], pp[2];
+	int i, gap, rest, pData[2], pSem[2];
 	pid_t *pid;
 	errno = 0;
 
+	//initialize signals' semaphore
+	semInit(sigSem);
+	//set signal handler for SIGQUIT (Ctrl-\)
+	signal(SIGQUIT, sigHandler);
+
+	//fork counter and init time counter
+	forks = procs;
+	calcTime = lag = 0;
+
 	//if single core, run simple generation
 	if (procs == 1) {
+		//initialize stuff
+		sigFlag = TRUE;
 		fprintf(stdout, "Starting worker 0: left %2d, right %2d\n", 0, nchars);
+		//calculate
 		clock_gettime(CLOCK_MONOTONIC, &tsBegin);
-		generatorSingle(0);
+		generatorSingleI(0);
 		clock_gettime(CLOCK_MONOTONIC, &tsEnd);
-		calcTime = SUMTIME(tsEnd, tsBegin);
-		fprintf(stdout, "Worker 0: numSeq %lf, sec %lf, seq/s %lf\n", numSeq, calcTime, numSeq/calcTime);
+		calcTime = SUMTIME(tsEnd, tsBegin) - lag;
+		fprintf(stdout, "Worker 0: numSeq %.0lf, sec %lf, seq/s %lf\n", numSeq, calcTime, numSeq/calcTime);
 		return;
 	}
 
+	//START main CRONOMETER
+	clock_gettime(CLOCK_MONOTONIC, &tsBegin);
+
 	sigFlag = FALSE;
-	//fork counter
-	forks = procs;
 	//gap on number of chars and eventual rest
 	gap = nchars / procs;
 	rest = nchars % procs;
@@ -178,19 +189,19 @@ static inline void forkProc(int procs, void (*generator)(unsigned char))
 	}
 
 	//open pipe to store data calculated by forks
-	if (pipe(pDescr) == -1) {
+	if (pipe(pData) == -1) {
 		fprintf(stderr, "Error opening pipe: %s.\n", strerror(errno));
 		free(pid);
 		freeExit();
 		exit (EXIT_FAILURE);
 	}
 
-	//initialize pipe semaphore
-	semInit(pp);
-	semSignal(pp);
-
-	//START CRONOMETER
-	clock_gettime(CLOCK_MONOTONIC, &tsBegin);
+	//initialize semaphore for pipe use
+	semInit(pSem);
+	semSignal(pSem);
+	//initialize semaphore for file write operations
+	semInit(fileSem);
+	semSignal(fileSem);
 
 	for (i=0; i<forks; i++) {
 		//fork
@@ -204,17 +215,19 @@ static inline void forkProc(int procs, void (*generator)(unsigned char))
 				right = nchars;
 
 			fprintf(stdout, "Starting worker %2d: left %2d, right %2d\n", i, left, right);
+			//reSTART local CRONOMETER
+			clock_gettime(CLOCK_MONOTONIC, &tsBegin);
 			generator(0);
 			//STOP local CRONOMETER
 			clock_gettime(CLOCK_MONOTONIC, &tsEnd);
 			//calculate elapsed time
-			calcTime = SUMTIME(tsEnd, tsBegin);
-			fprintf(stdout, "Worker %2d: numSeq %lf, sec %lf, seq/s %lf\n", i, numSeq, calcTime, numSeq/calcTime);
+			calcTime = SUMTIME(tsEnd, tsBegin) - lag;
+			fprintf(stdout, "Worker %2d: numSeq %.0lf, sec %lf, seq/s %lf\n", i, numSeq, calcTime, numSeq/calcTime);
 
 			//save to pipe, use of pipe semaphore
-			semWait(pp);
-			writePipe(pDescr, numSeq, calcTime);
-			semSignal(pp);
+			semWait(pSem);
+			writePipe(pData, numSeq, calcTime);
+			semSignal(pSem);
 			free(pid);
 			freeExit();
 			//the child can exit
@@ -225,23 +238,32 @@ static inline void forkProc(int procs, void (*generator)(unsigned char))
 	//main process wait until all childs have finished
 	for (i=0; i<forks; i++)
 		waitpid(pid[i], NULL, 0);
-	semDestroy(pp);
+	semDestroy(pSem);
+	semDestroy(sigSem);
 
 	//get calculated data (written on pipe)
-	close(pDescr[1]);
-	calcTime = 0;
+	close(pData[1]);
 	for (i=0; i<forks; i++)
-		numSeq += readPipe(pDescr, &calcTime);
-	close(pDescr[0]);
+		numSeq += readPipe(pData, &calcTime);
+	close(pData[0]);
 	free(pid);
 
 #ifdef DEBUG
 	//final output
 	clock_gettime(CLOCK_MONOTONIC, &tsEnd);
-	fprintf(stdout, "\nAll workers have finished:\n\tCalc time\t%lf\n\tRun time\t%lf\n", calcTime, SUMTIME(tsEnd, tsBegin));
+	fprintf(stdout, "\nAll workers have finished:\n\tCalc time:\t%lf\n\tRun time:\t%lf\n\tTot time:\t%lf\n\tLag time:\t%lf\n", calcTime, SUMTIME(tsEnd, tsBegin) - lag, SUMTIME(tsEnd, tsBegin), lag);
 #endif
 
 #endif
+}
+
+
+/* Print program header */
+static inline void printHeader()
+{
+    fprintf(stdout, "\n =======================================================================\n");
+    fprintf(stdout, "         Pw-Gen  |  Sequences generator - v. %s (%s)\n", VERS, BUILD);
+    fprintf(stdout, " =======================================================================\n\n");
 }
 
 
@@ -362,10 +384,10 @@ static inline int readChars()
 }
 
 
-/* Set and alloc sequence, lenght, and counters */
+/* Set and alloc sequence and lenght */
 static inline void setSeq()
 {
-	char buff[BUFF];
+	char buff[BUFF], c;
 	errno = 0;
 
 	if (len == 0) {
@@ -379,12 +401,29 @@ static inline void setSeq()
 			if (sscanf(buff, "%d", &len) != 1)
 				len = 0;
 		} while (len <= 0 && fprintf(stderr, "Positive integers only! Try again:\t"));
+
+		//check program updates
+		fprintf(stdout, "\nDo you want to check for available updates? (requires internet connection!)  [Y-N]\n");
+		do {
+			if (fgets(buff, BUFF-1, stdin) == NULL) {
+				fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+				freeExit();
+				exit (EXIT_FAILURE);
+			}
+			sscanf(buff, "%c", &c);
+			c = toupper(c);
+		} while (c != 'Y' && c != 'N' && fprintf(stdout, "Type only [Y-N]\n"));
+		if (c == 'Y')
+			checkVersion();
 	}
-	if ((word = (char *)malloc(len * sizeof(char))) == NULL) {
+	//alloc word string (+1 for newline, used for printing to file)
+	if ((word = (char *)malloc((len+1) * sizeof(char))) == NULL) {
 		fprintf(stderr, "Error allocating memory (%d): %s.\n", len, strerror(errno));
 		freeExit();
 		exit (EXIT_FAILURE);
 	}
+	word[len] = '\n';
+	fprintf(stdout, "Lenght: %d, chars: %d, number of expected sequences: %.0lf\n\n", len, nchars, pow(nchars, len));
 }
 
 
@@ -396,18 +435,19 @@ static inline void setOper()
 
 	//mode=1: write to file
 	if (mode == 1) {
-		fprintf(stdout, "\nOutput file:\t");
+		fprintf(stdout, "Output file:\t");
 		if (fgets(buff, BUFF-1, stdin) == NULL) {
 			fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
 			freeExit();
 			exit (EXIT_FAILURE);
 		}
 		sscanf(buff, "%s", dict);
-		if ((fout = fopen(dict, "w")) == NULL) {
+		if ((fout = fopen(dict, "wb")) == NULL) {
 			fprintf(stderr, "Error opening file \"%s\": %s.\n", dict, strerror(errno));
 			freeExit();
 			exit (EXIT_FAILURE);
 		}
+		fprintf(stdout, "\n");
 	}
 	else
 		fout = stdout;

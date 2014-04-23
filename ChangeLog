@@ -1,8 +1,18 @@
+Version 1.2.3 (changes from 1.2.2) - Released 17/04/2014:
+* Iterative generators
+* Program suspension: pause and restart (Ctrl+\)
+* Program heading
+* Version check
+* Various bug fixes
+* Large file support (>2GB)
+* Pipe semaphores for file writes
+* Forecast number of sequences
+
 Version 1.2.2 (changes from 1.2.0) - Released 04/04/2014:
 * Source modularity
 * Proper time measurements (nanoseconds precision)
 * Fixed splitting of job per each process
-* Pipe semaphores for concurrent writes on inter-process shared pipe
+* Pipe semaphores for concurrent writes on inter-process shared pipes
 
 Version 1.2.0 (changes from 1.1.0) - Released 21/03/2014:
 * Multi-core CPU support: use of FORKs (Linux only)
@@ -25,7 +35,7 @@ Version 1.0.0 - Released 14/03/2014:
 ---
 
 Version 0.4.0 (changes from 0.3.0) - Released 16/07/2013 (D's work):
-* experimental: interruption and recovery
+* Experimental: interruption and recovery
 
 Version 0.3.0 (changes from 0.2.0) - Released xx/06/2013 (D's work):
 * Iterative generation - deprecated

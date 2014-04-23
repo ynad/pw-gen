@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-03]
+   Revision    [2014-04-14]
 
 ******************************************************************************/
 
@@ -22,11 +22,14 @@
 #define LIB_H_INCLUDED
 
 
+/* Clear memory and other stuff */
+inline void freeExit();
+
 /* CPU cores counter */
 inline int procNumb();
 
-/* Clear memory and other stuff */
-inline void freeExit();
+/* Check current version with info on online repo */
+inline int checkVersion();
 
 #ifdef __linux__
 

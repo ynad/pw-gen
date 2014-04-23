@@ -3,25 +3,20 @@ Pw-Gen - Sequences generator
 
 Version:
 --------
-1.2.2 (2014-04-04)
+1.2.3 (2014-04-17)
 See ChangeLog for details. 
 
     TODO:
     - proper arg checks
     - verbose/debug mode
     - use of wchar.h
-    - status save and restart
-    - big files support
+    - status save and restart (full process exit)
     - big files split
-    - iterative version
-    - version check
     - a cool Makefile
-    - 88^n numSeq prevision
-    - check windows compatibility
-    - program header
+    - threads for low impact progress monitoring
 
     BUGS:
-    
+    - writing to file: overwrites and low performances
 
 
 Description:

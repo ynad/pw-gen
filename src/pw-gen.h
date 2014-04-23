@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-04]
+   Revision    [2014-04-17]
 
 ******************************************************************************/
 
@@ -23,8 +23,8 @@
 
 
 /* Version code - keep UPDATED! */
-#define VERS "1.2.2"
-#define BUILD "2014-04-04"
+#define VERS "1.2.3"
+#define BUILD "2014-04-17"
 
 #define FALSE 0
 #define TRUE 1
@@ -36,15 +36,19 @@
 #define NUM_ALL 88
 
 
+/* Macros */
+#define SUMTIME(tsEnd, tsBegin) (((double)tsEnd.tv_sec + (double)tsEnd.tv_nsec/NANO) - ((double)tsBegin.tv_sec + (double)tsBegin.tv_nsec/NANO))
+
+
 /** Global variables - See pw-gen.c for details **/
 extern int len, nchars, left, right;
 extern double numSeq;
-extern FILE *fout;
 extern char mode, chars[], *word, *pchars;
+extern FILE *fout;
 
 #ifdef __linux__
-extern double calcTime;
-extern int sigFlag;
+extern double calcTime, lag;
+extern int forks, sigFlag, sigSem[], fileSem[];
 #endif
 
 
