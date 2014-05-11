@@ -1,23 +1,35 @@
 ## Pw-Gen makefile
 
+# Compilation variables
+CC=gcc
+CFLAGS=-Wall -O3 -D_FILE_OFFSET_BITS=64
+LDFLAGS=-lm -lrt
+INCL=-I src/
+DEBUG=-g -DDEBUG
+SOURCES=src/pw-gen.c src/generator.c src/lib.c
+OBJECTS=obj/pw-gen.o obj/generator.o obj/lib.o
+EXECUTABLE=bin/pw-gen.bin
+
 target:
 	# Main module - Object
-	gcc -Wall -O3 -I src/ -c src/pw-gen.c src/generator.c src/lib.c -D_FILE_OFFSET_BITS=64 -lm -lrt
+	$(CC) $(CFLAGS) $(INCL) -c $(SOURCES) $(LDFLAGS)
 	mkdir -p obj
 	mv *.o obj
 
 install: target
 	# Main module - Executable
 	mkdir -p bin
-	gcc -Wall -O3 obj/pw-gen.o obj/generator.o obj/lib.o -o bin/pw-gen.bin -D_FILE_OFFSET_BITS=64 -lm -lrt
+	$(CC) $(CFLAGS) $(OBJECTS) -o $(EXECUTABLE) $(LDFLAGS)
 
 debug:
 	# Main module - DEBUG
-	gcc -g -Wall -O3 -I src/ -c src/pw-gen.c src/generator.c src/lib.c -D_FILE_OFFSET_BITS=64 -lm -lrt -DDEBUG
+	$(CC) $(CFLAGS) $(INCL) -c $(SOURCES) $(LDFLAGS) $(DEBUG)
 	mkdir -p obj
 	mv *.o obj
 	mkdir -p bin
-	gcc -g -Wall -O3 obj/pw-gen.o obj/generator.o obj/lib.o -o bin/pw-gen.bin -D_FILE_OFFSET_BITS=64 -lm -lrt -DDEBUG
+	$(CC) $(CFLAGS) $(OBJECTS) -o $(EXECUTABLE) $(LDFLAGS) $(DEBUG)
+
+.PHONY: clean
 
 clean:
 	rm -rf obj
