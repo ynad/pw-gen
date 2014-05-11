@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-17]
+   Revision    [2014-05-11]
 
 ******************************************************************************/
 
@@ -136,9 +136,7 @@ void generatorWriteR(unsigned char pos)
     if (pos == len) {
         numSeq++;
 		//write word
-		semWait(fileSem);
 		fwrite(word, sizeof(char), len+1, fout);
-		semSignal(fileSem);
         return;
     }
 	//first char
@@ -228,9 +226,7 @@ inline void generatorWriteI(unsigned char z)
 
 			while (pos == len-1 && word[pos] != pchars[nchars]) {
 				//write word
-				semWait(fileSem);
 				fwrite(word, sizeof(char), len+1, fout);
-				semSignal(fileSem);
 				numSeq++;
 				num_chars[pos]++;
 				word[pos] = pchars[num_chars[pos]];            

@@ -3,7 +3,7 @@ Pw-Gen - Sequences generator
 
 Version:
 --------
-1.2.3 (2014-04-17)
+1.2.4 (2014-05-11)
 See ChangeLog for details. 
 
     TODO:
@@ -11,17 +11,14 @@ See ChangeLog for details.
     - verbose/debug mode
     - use of wchar.h
     - status save and restart (full process exit)
-    - big files split
-    - a cool Makefile
     - threads for low impact progress monitoring
 
     BUGS:
-    - writing to file: overwrites and low performances
+    
 
 
 Description:
 ------------
-
 Sequences generator: recursive generation of all alphanumeric sequences, to use with brute-force tools.
 
 
@@ -35,6 +32,9 @@ Linux:
 
   - Compile and install:
       `make install`
+
+  - Compile and install in DEBUG mode:
+      `make debug`
 
   - Remove only objects:
       `make clean`

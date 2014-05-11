@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-17]
+   Revision    [2014-05-11]
 
 ******************************************************************************/
 
@@ -23,8 +23,8 @@
 
 
 /* Version code - keep UPDATED! */
-#define VERS "1.2.3"
-#define BUILD "2014-04-17"
+#define VERS "1.2.4"
+#define BUILD "2014-05-11"
 
 #define FALSE 0
 #define TRUE 1
@@ -43,13 +43,13 @@
 /** Global variables - See pw-gen.c for details **/
 extern int len, nchars, left, right;
 extern double numSeq;
-extern char mode, chars[], *word, *pchars;
+extern char mode, dict[], *word, *pchars, chars[];
 extern FILE *fout;
 
 #ifdef __linux__
 extern double calcTime, lag;
-extern int forks, sigFlag, sigSem[], fileSem[];
-#endif
+extern int sigFlag, procs, forks, sigSem[];
+#endif //__linux__
 
 
 #endif // PWGEN_H_INCLUDED

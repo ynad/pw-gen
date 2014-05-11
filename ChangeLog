@@ -1,3 +1,8 @@
+Version 1.2.4 (changes from 1.2.3) - Released 11/05/2014:
+* Output on split files: one per each process
+* Code reorganized and modularized
+* Bug fixes
+
 Version 1.2.3 (changes from 1.2.2) - Released 17/04/2014:
 * Iterative generators
 * Program suspension: pause and restart (Ctrl+\)

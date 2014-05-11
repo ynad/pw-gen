@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-14]
+   Revision    [2014-05-10]
 
 ******************************************************************************/
 
@@ -21,6 +21,30 @@
 #ifndef LIB_H_INCLUDED
 #define LIB_H_INCLUDED
 
+
+/* Print program header */
+inline void printHeader();
+
+/* Print program syntax */
+inline void printSyntax(char *);
+
+/* Print program results */
+inline void printResults();
+
+/* Set and alloc sequence and lenght */
+inline void setSeq();
+
+/* Set operating mode and output file */
+inline void setOper();
+
+/* Arguments and sintax check */
+inline void argCheck(int argc, char **argv);
+
+/* Read set of chars from file */
+inline int readChars();
+
+/* Open output n-file */
+inline void fileDict(int);
 
 /* Clear memory and other stuff */
 inline void freeExit();
@@ -31,6 +55,8 @@ inline int procNumb();
 /* Check current version with info on online repo */
 inline int checkVersion();
 
+
+/* Linux specific functions */
 #ifdef __linux__
 
 /* Write data to pipe */
@@ -54,7 +80,7 @@ inline void semDestroy(int *);
 /* Signals handler */
 void sigHandler(int);
 
-#endif
+#endif //__linux__
 
 
 #endif // LIB_H_INCLUDED

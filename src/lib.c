@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-04-15]
+   Revision    [2014-05-11]
 
 ******************************************************************************/
 
@@ -22,8 +22,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef __linux__
     #include <unistd.h>
@@ -41,9 +43,234 @@
 /* Library functions header */
 #include "lib.h"
 
+//file extension for dictionary
+#define EXTN "txt"
+
 //URL to repo and file containing version info
 #define REPO "github.com/ynad/pw-gen/"
 #define URLVERS "https://raw.github.com/ynad/pw-gen/master/VERSION"
+
+
+
+/* Print program header */
+inline void printHeader()
+{
+    fprintf(stdout, "\n =======================================================================\n");
+    fprintf(stdout, "         Pw-Gen  |  Sequences generator - v. %s (%s)\n", VERS, BUILD);
+    fprintf(stdout, " =======================================================================\n\n");
+}
+
+
+/* Print program syntax */
+inline void printSyntax(char *argv0)
+{
+	fprintf(stderr, "Syntax: %s [mode] <seq-lenght> <chars-set>\n", argv0);
+	fprintf(stderr, "\t[mode]:\t\t1 = Write to file\n\t\t\t2 = Calcs only\n"
+			"\t<seq-lenght>:\tset sequence lenght (integer)\n"
+			"\t<chars-set>:\tS = set SHORT set of chars [a-z,A-Z,0-9]\n\t\t\tF = set FULL set of chars (default)\n\t\t\tP = set PERSONALIZED set of chars from file\n");
+}
+
+
+/* Print program results */
+inline void printResults()
+{
+#ifdef WINZOZ
+	fprintf(stdout, "\nElapsed time (seconds):\t   %f\n", timeEnd-timeBegin);
+	fprintf(stdout, "Sequences generated:\t   %.0lf\n", numSeq);
+	fprintf(stdout, "Sequences/second:\t   %lf\n\n", numSeq/(timeEnd-timeBegin));
+
+#elif defined __linux__
+	fprintf(stdout, "\nElapsed time:\t\t   %lf sec\n", calcTime);
+	fprintf(stdout, "Sequences generated:\t   %.0lf\n", numSeq);
+	fprintf(stdout, "Sequences/second:\t   %lf\n\n", numSeq/calcTime);
+#endif //__linux__
+}
+
+
+/* Set and alloc sequence and lenght */
+inline void setSeq()
+{
+	char buff[BUFF], c;
+	errno = 0;
+
+	if (len == 0) {
+		fprintf(stdout, "\nSequence lenght:\t");
+		do {
+			if (fgets(buff, BUFF-1, stdin) == NULL) {
+				fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+				freeExit();
+				exit (EXIT_FAILURE);
+			}
+			if (sscanf(buff, "%d", &len) != 1)
+				len = 0;
+		} while (len <= 0 && fprintf(stderr, "Positive integers only! Try again:\t"));
+
+		//check program updates
+		fprintf(stdout, "\nDo you want to check for available updates? (requires internet connection!)  [Y-N]\n");
+		do {
+			if (fgets(buff, BUFF-1, stdin) == NULL) {
+				fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+				freeExit();
+				exit (EXIT_FAILURE);
+			}
+			sscanf(buff, "%c", &c);
+			c = toupper(c);
+		} while (c != 'Y' && c != 'N' && fprintf(stdout, "Type only [Y-N]\n"));
+		if (c == 'Y')
+			checkVersion();
+	}
+	//alloc word string (+1 for newline, used for printing to file)
+	if ((word = (char *)malloc((len+1) * sizeof(char))) == NULL) {
+		fprintf(stderr, "Error allocating memory (%d): %s.\n", len, strerror(errno));
+		freeExit();
+		exit (EXIT_FAILURE);
+	}
+	word[len] = '\n';
+	fprintf(stdout, "Lenght: %d, chars: %d, number of expected sequences: %.0lf\n\n", len, nchars, pow(nchars, len));
+}
+
+
+/* Set operating mode and output filename */
+inline void setOper()
+{
+	char buff[BUFF];
+	errno = 0;
+
+	//mode=1: write to file
+	if (mode == 1) {
+		fprintf(stdout, "Output file (NO file extension):\t");
+		if (fgets(buff, BUFF-1, stdin) == NULL) {
+			fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+			freeExit();
+			exit (EXIT_FAILURE);
+		}
+		sscanf(buff, "%s", dict);
+		fprintf(stdout, "\n");
+	}
+	else
+		fout = stdout;
+}
+
+
+/* Arguments and sintax check */
+inline void argCheck(int argc, char **argv)
+{
+	int l;
+
+	//wrong sintax
+	if (argc < 2) {
+		printSyntax(argv[0]);
+		exit (EXIT_FAILURE);
+	}
+	//set operating mode and initializations
+	mode = atoi(argv[1]);
+	nchars = NUM_ALL;
+	len = 0;
+	pchars = chars;
+	numSeq = 0;
+	left = 0;
+	right = nchars;
+	word = NULL;
+	fout = NULL;
+	//set lenght OR chars subset if defined
+	if (argc == 3) {
+		len = atoi(argv[2]);
+		if (len > 0)
+			return;
+		else
+			len = 0;
+		if (toupper(argv[3][0]) == 'S')
+			nchars = NUM_STD;
+		else if (toupper(argv[3][0]) == 'P') {
+			nchars = readChars();
+		}
+	}
+	//set lenght AND chars subset if defined
+	else if (argc == 4) {
+		//check argv2
+		if ((l = atoi(argv[2])) <= 0) {
+			if (toupper(argv[2][0]) == 'S')
+				nchars = NUM_STD;
+			else if (toupper(argv[2][0]) == 'P')
+				nchars = readChars();
+		}
+		else
+			len = l;
+		//check argv3
+		if ((l = atoi(argv[3])) <= 0) {
+			if (toupper(argv[3][0]) == 'S')
+				nchars = NUM_STD;
+			else if (toupper(argv[3][0]) == 'P')
+				nchars = readChars();
+		}
+		else
+			len = l;
+	}
+}
+
+
+/* Read set of chars from file */
+inline int readChars()
+{
+	FILE *fp;
+	char buff[BUFF], source[BUFF];
+	int dim, i;
+	errno = 0;
+
+	//get filename
+	fprintf(stdout, "\nInput chars source file:\t");
+	if (fgets(source, BUFF-1, stdin) == NULL) {
+		fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+		freeExit();
+		exit (EXIT_FAILURE);
+	}
+	if (source[strlen(source)-1] == '\n')
+		source[strlen(source)-1] = '\0';
+	if ((fp = fopen(source, "r")) == NULL) {
+		fprintf(stderr, "Error opening file \"%s\": %s.\n", source, strerror(errno));
+		freeExit();
+		exit (EXIT_FAILURE);
+	}
+	//calculate lenght and thus memory allocation
+	dim = 0;
+	while (fgets(buff, BUFF-1, fp) != NULL)
+		dim++;
+	rewind(fp);
+	if ((pchars = (char *)malloc(dim * sizeof(char))) == NULL) {
+		fprintf(stderr, "Error allocating memory (%d): %s.\n", dim, strerror(errno));
+		freeExit();
+		exit (EXIT_FAILURE);
+	}
+
+	//acquisition of chars
+	for (i=0; i<dim; i++) {
+		if (fgets(buff, BUFF-1, fp) == NULL) {
+			fprintf(stderr, "Error reading from file \"%s\": %s.\n", source, strerror(errno));
+			freeExit();
+			exit (EXIT_FAILURE);
+		}
+		if (sscanf(buff, "%c", &pchars[i]) != 1) {
+			fprintf(stderr, "Error reading from file \"%s\": wrong format.\n", source);
+			freeExit();
+			exit(EXIT_FAILURE);
+		}
+	}
+	return dim;
+}
+
+
+/* Open output n-file */
+inline void fileDict(int n)
+{
+	//add file number and file extension
+	sprintf(dict, "%s-%d.%s", dict, n, EXTN);
+	//and open it in binary mode
+	if ((fout = fopen(dict, "wb")) == NULL) {
+			fprintf(stderr, "Error opening file \"%s\": %s.\n", dict, strerror(errno));
+			freeExit();
+			exit (EXIT_FAILURE);
+	}
+}
 
 
 /* Clear memory and other stuff */
@@ -138,6 +365,7 @@ inline int checkVersion()
 }
 
 
+/* Linux specific functions */
 #ifdef __linux__
 
 /* Write data to pipe */
@@ -265,5 +493,5 @@ void sigHandler(int sig)
 	}
 }
 
-#endif
+#endif //__linux__
 
