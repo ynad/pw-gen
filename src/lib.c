@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-11]
+   Revision    [2014-05-15]
 
 ******************************************************************************/
 
@@ -30,6 +30,8 @@
 #ifdef __linux__
     #include <unistd.h>
     #include <signal.h>
+   	#include <pthread.h>
+   	#include <semaphore.h>
 #elif defined _WIN32 || defined _WIN64
     #define WIN32_LEAN_AND_MEAN
     #define WINZOZ
@@ -45,10 +47,26 @@
 
 //file extension for dictionary
 #define EXTN "txt"
+//thread's sleep time
+#define SLEPTM 20
+//maximum percentage for thread monitoring
+#define MAXPERC 90.0
 
 //URL to repo and file containing version info
 #define REPO "github.com/ynad/pw-gen/"
 #define URLVERS "https://raw.github.com/ynad/pw-gen/master/VERSION"
+
+
+#ifdef __linux__
+/** Global variables **/
+static pthread_t tid;
+static sem_t semThr;
+static int thrId;
+
+
+/* Local prototypes */
+static void *threadRunner();
+#endif
 
 
 
@@ -126,7 +144,8 @@ inline void setSeq()
 		exit (EXIT_FAILURE);
 	}
 	word[len] = '\n';
-	fprintf(stdout, "Lenght: %d, chars: %d, number of expected sequences: %.0lf\n\n", len, nchars, pow(nchars, len));
+	fprintf(stdout, "Lenght: %d, chars: %d, number of expected sequences: %.0lf\n", len, nchars, pow(nchars, len));
+	fprintf(stdout, "Press Ctrl+\\ to pause or Ctrl+C to exit.\n\n");
 }
 
 
@@ -406,7 +425,7 @@ inline double readPipe(int *pDescr, double *time)
 
 
 /* Pipe semaphore - Init */
-inline void semInit(int *s)
+inline void psemInit(int *s)
 {
 	errno = 0;
 	if (pipe(s) == -1) {
@@ -417,7 +436,7 @@ inline void semInit(int *s)
 
 
 /* Pipe semaphore - Wait */
-inline void semWait(int *s)
+inline void psemWait(int *s)
 {
 	char ch;
 	errno = 0;
@@ -429,7 +448,7 @@ inline void semWait(int *s)
 
 
 /* Pipe semaphore - Signal */
-inline void semSignal(int *s)
+inline void psemSignal(int *s)
 {
 	char ch='Z';
 	errno = 0;
@@ -441,7 +460,7 @@ inline void semSignal(int *s)
 
 
 /* Pipe semaphore - Destroy */
-inline void semDestroy(int *s)
+inline void psemDestroy(int *s)
 {
 	close(s[0]);
 	close(s[1]);
@@ -456,9 +475,13 @@ void sigHandler(int sig)
 
 	//Ctrl-C: whole program exits
 	if (sig == SIGINT) {
+		//only father prints
 		if (sigFlag == TRUE)
 			fprintf(stderr, "\nReceived signal SIGINT (%d): exiting.\n", sig);
-	
+		//only childs
+		else
+			sem_destroy(&semThr);
+
 		//pre-exit stuff
 		freeExit();
 
@@ -476,21 +499,82 @@ void sigHandler(int sig)
 			fprintf(stderr, "Program suspended, press any key to continue...\n");
 			getchar();
 			fprintf(stderr, "Program restored...\n");
+
 			//semaphore signal
 			for (i=0; i<forks; i++)
-				semSignal(sigSem);
+				psemSignal(sigSem);
 			clock_gettime(CLOCK_MONOTONIC, &ts2);
-			lag = SUMTIME(ts2, ts1);
+			lag += SUMTIME(ts2, ts1);
 			
 		}
 		//childs wait for father signal
 		else {
+			//pause my thread
+			pthread_kill(tid, SIGUSR1);
 			//semaphore wait
-			semWait(sigSem);
+			psemWait(sigSem);
+
+			//wake up my thread
+			sem_post(&semThr);
 			clock_gettime(CLOCK_MONOTONIC, &ts2);
-			lag = SUMTIME(ts2, ts1);
+			lag += SUMTIME(ts2, ts1);
 		}
 	}
+	//signal used by fork's threads
+	else if (sig == SIGUSR1) {
+		//wait then restart
+		sem_wait(&semThr);
+	}
+}
+
+
+/* Watch thread caller */
+inline void watchThread(int id)
+{
+    int ris;
+    errno = 0;
+
+    //set data
+    thrId = id;
+    //create thread
+    ris = pthread_create(&tid, NULL, threadRunner, NULL);
+    if (ris) {
+      fprintf(stderr, "Error creating thread %d (%d): %s\n", id, ris, strerror(errno));
+      freeExit();
+      exit (EXIT_FAILURE);
+    }
+}
+
+
+/* Watch thread */
+static void *threadRunner()
+{
+    double totSeq, perc, loctime, seqSec;
+    struct timespec timer;
+
+    //initialize thread semaphore
+    sem_init(&semThr, 0, 0);
+    //set signal handler (use SIGUSR1)
+    signal(SIGUSR1, sigHandler);
+
+    //calculate data
+    perc = 0;
+    totSeq = SEQPART();
+
+    while (perc < MAXPERC) {
+        sleep(SLEPTM);
+        //time elapsed until now
+        clock_gettime(CLOCK_MONOTONIC, &timer);
+        loctime = SUMTIME(timer, tsBegin) - lag;
+        //work progress
+        perc = (numSeq / totSeq) * 100;
+        seqSec = numSeq / loctime;
+        //print stats
+        fprintf(stdout, "\tWorker %2d: %6.3lf%% (%.0lf / %.0lf), sec %.3lf, seq/s %.3lf, time left %.3lf\n", thrId, perc, numSeq, totSeq, loctime, seqSec, totSeq/seqSec-loctime);
+    }
+
+    sem_destroy(&semThr);
+    pthread_exit(NULL);
 }
 
 #endif //__linux__

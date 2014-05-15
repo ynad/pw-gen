@@ -3,7 +3,7 @@
 # Compilation variables
 CC=gcc
 CFLAGS=-Wall -O3 -D_FILE_OFFSET_BITS=64
-LDFLAGS=-lm -lrt
+LDFLAGS=-lm -lrt -lpthread
 INCL=-I src/
 DEBUG=-g -DDEBUG
 SOURCES=src/pw-gen.c src/generator.c src/lib.c

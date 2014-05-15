@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-10]
+   Revision    [2014-05-15]
 
 ******************************************************************************/
 
@@ -66,19 +66,22 @@ inline void writePipe(int *, double, double);
 inline double readPipe(int *, double *);
 
 /* Pipe semaphore - Init */
-inline void semInit(int *);
+inline void psemInit(int *);
 
 /* Pipe semaphore - Wait */
-inline void semWait(int *);
+inline void psemWait(int *);
 
 /* Pipe semaphore - Signal */
-inline void semSignal(int *);
+inline void psemSignal(int *);
 
 /* Pipe semaphore - Destroy */
-inline void semDestroy(int *);
+inline void psemDestroy(int *);
 
 /* Signals handler */
 void sigHandler(int);
+
+/* Watch thread caller */
+inline void watchThread(int);
 
 #endif //__linux__
 

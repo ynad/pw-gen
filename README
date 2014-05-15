@@ -3,7 +3,7 @@ Pw-Gen - Sequences generator
 
 Version:
 --------
-1.2.4 (2014-05-11)
+1.2.5 (2014-05-15)
 See ChangeLog for details. 
 
     TODO:
@@ -11,10 +11,9 @@ See ChangeLog for details.
     - verbose/debug mode
     - use of wchar.h
     - status save and restart (full process exit)
-    - threads for low impact progress monitoring
 
     BUGS:
-    
+    - crashes with casual 2nd arg, wrong behavior with more args
 
 
 Description:

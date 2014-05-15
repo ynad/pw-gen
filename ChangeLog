@@ -1,3 +1,9 @@
+Version 1.2.5 (changes from 1.2.4) - Released 15/05/2014:
+* Process monitoring with threads: progress, speed, estimated time left
+* Fixed thread pause and restart
+* Fixed erroneus file opening in calc only mode
+* Other small fixes
+
 Version 1.2.4 (changes from 1.2.3) - Released 11/05/2014:
 * Output on split files: one per each process
 * Code reorganized and modularized

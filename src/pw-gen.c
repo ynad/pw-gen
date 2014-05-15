@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-11]
+   Revision    [2014-05-15]
 
 ******************************************************************************/
 
@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef __linux__
     #include <unistd.h>
@@ -36,7 +37,6 @@
     #define WINZOZ
     #include <windows.h>
     #include <conio.h>
-    #define OUTCNT "C:\pw-gen.log"
 #else
     #error "Unknown platform"
 #endif
@@ -138,7 +138,7 @@ static inline void forkProc(void (*generator)(unsigned char))
 	errno = 0;
 
 	//initialize suspension semaphore
-	semInit(sigSem);
+	psemInit(sigSem);
 	//set signal handler for SIGQUIT (Ctrl-\)
 	signal(SIGQUIT, sigHandler);
 
@@ -159,10 +159,13 @@ static inline void forkProc(void (*generator)(unsigned char))
 		if (pid[i] == 0) {
 			//calculate current indexes
 			indexFork(i, gap);
-			//open output file
-			fileDict(i+1);
+			//open output file in mode=1
+			if (mode == 1)
+				fileDict(i+1);
+			//start watchThread
+			watchThread(i+1);
 
-			fprintf(stdout, "Starting worker %2d: left %2d, right %2d\n", i+1, left, right);
+			fprintf(stdout, "Starting worker %2d: left %2d, right %2d, seq %0.lf\n", i+1, left, right-1, SEQPART());
 			//reSTART local CRONOMETER
 			clock_gettime(CLOCK_MONOTONIC, &tsBegin);
 			generator(0);
@@ -170,12 +173,12 @@ static inline void forkProc(void (*generator)(unsigned char))
 			clock_gettime(CLOCK_MONOTONIC, &tsEnd);
 			//calculate elapsed time
 			calcTime = SUMTIME(tsEnd, tsBegin) - lag;
-			fprintf(stdout, "Worker %2d: numSeq %.0lf, sec %lf, seq/s %lf\n", i+1, numSeq, calcTime, numSeq/calcTime);
+			fprintf(stdout, "Finished worker %2d: numSeq %.0lf, sec %lf, seq/s %lf\n", i+1, numSeq, calcTime, numSeq/calcTime);
 
 			//save to pipe, use of pipe semaphore
-			semWait(pSem);
+			psemWait(pSem);
 			writePipe(pData, numSeq, calcTime);
-			semSignal(pSem);
+			psemSignal(pSem);
 			free(pid);
 			freeExit();
 			//the child can exit
@@ -246,8 +249,8 @@ static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
 	}
 	
 	//initialize semaphore for pipe use
-	semInit(pSem);
-	semSignal(pSem);
+	psemInit(pSem);
+	psemSignal(pSem);
 
 	return gap;
 }
@@ -274,8 +277,8 @@ static inline void fatherFork(pid_t *pid, int *pSem, int *pData)
 	//main process waits until all childs have finished
 	for (i=0; i<forks; i++)
 		waitpid(pid[i], NULL, 0);
-	semDestroy(pSem);
-	semDestroy(sigSem);
+	psemDestroy(pSem);
+	psemDestroy(sigSem);
 
 	//get calculated data (written on pipe)
 	close(pData[1]);
