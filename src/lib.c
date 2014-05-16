@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-15]
+   Revision    [2014-05-16]
 
 ******************************************************************************/
 
@@ -66,6 +66,7 @@ static int thrId;
 
 /* Local prototypes */
 static void *threadRunner();
+static void secstoHuman(double);
 #endif
 
 
@@ -570,11 +571,46 @@ static void *threadRunner()
         perc = (numSeq / totSeq) * 100;
         seqSec = numSeq / loctime;
         //print stats
-        fprintf(stdout, "\tWorker %2d: %6.3lf%% (%.0lf / %.0lf), sec %.3lf, seq/s %.3lf, time left %.3lf\n", thrId, perc, numSeq, totSeq, loctime, seqSec, totSeq/seqSec-loctime);
+        fprintf(stdout, "    Worker %2d: %6.3lf%% (%.0lf / %.0lf), sec %.3lf, seq/s %.3lf, time left ", thrId, perc, numSeq, totSeq, loctime, seqSec);
+        secstoHuman(totSeq/seqSec-loctime);
     }
 
     sem_destroy(&semThr);
     pthread_exit(NULL);
+}
+
+
+/* Convert and print seconds to human legible format */
+static void secstoHuman(double sec)
+{
+	double s, m, h, d, y;
+
+	//from seconds calculate eventual minutes, hours, days and years
+	m = h = d = y = 0;
+	if (sec >= 60) {
+		m = sec / 60;
+		if (m >= 60) {
+			h = m / 60;
+			if (h >= 24) {
+				d = h / 24;
+				if (d >= 365) 
+					y = d / 365;
+			}
+		}
+	}
+	//exact relative quantity with modules
+	d = fmod(d, 365);
+	h = fmod(h, 24);
+	m = fmod(m, 60);
+	s = fmod(sec, 60);
+
+	//output
+	if (y > 0)
+		fprintf(stdout, "%.0lf years %.0lf days %02.0lf:%02.0lf:%02.0lf\n", y, d, h, m, s);
+	else if (d > 0)
+		fprintf(stdout, "%.0lf days %02.0lf:%02.0lf:%02.0lf\n", d, h, m, s);
+	else
+		fprintf(stdout, "%02.0lf:%02.0lf:%02.0lf\n", h, m, s);
 }
 
 #endif //__linux__
