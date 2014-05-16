@@ -32,7 +32,7 @@ debug:
 .PHONY: clean
 
 clean:
-	rm -rf obj
+	rm -rf obj *.o
 
 uninstall: clean
 	rm -f bin/*
