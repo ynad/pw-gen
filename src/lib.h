@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-15]
+   Revision    [2014-05-20]
 
 ******************************************************************************/
 
@@ -52,12 +52,12 @@ inline void freeExit();
 /* CPU cores counter */
 inline int procNumb();
 
-/* Check current version with info on online repo */
-inline int checkVersion();
-
 
 /* Linux specific functions */
 #ifdef __linux__
+
+/* Check current version with info on online repo */
+inline int checkVersion();
 
 /* Write data to pipe */
 inline void writePipe(int *, double, double);
