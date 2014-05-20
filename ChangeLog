@@ -1,3 +1,9 @@
+Version 1.2.6 (changes from 1.2.5) - Released 20/05/2014:
+* Estimation of output file size
+* Show writing speed
+* Fixed thread signal handling: proper pause and restart
+* Fixed Windows compatibility
+
 Version 1.2.5 (changes from 1.2.4) - Released 16/05/2014:
 * Process monitoring with threads: progress, speed, estimated time left
 * Fixed thread pause and restart

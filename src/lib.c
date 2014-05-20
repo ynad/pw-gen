@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-16]
+   Revision    [2014-05-20]
 
 ******************************************************************************/
 
@@ -32,6 +32,7 @@
     #include <signal.h>
    	#include <pthread.h>
    	#include <semaphore.h>
+   	#include <sys/stat.h>
 #elif defined _WIN32 || defined _WIN64
     #define WIN32_LEAN_AND_MEAN
     #define WINZOZ
@@ -51,6 +52,8 @@
 #define SLEPTM 20
 //maximum percentage for thread monitoring
 #define MAXPERC 90.0
+//megabyte
+#define MEGA 1000000
 
 //URL to repo and file containing version info
 #define REPO "github.com/ynad/pw-gen/"
@@ -60,14 +63,14 @@
 #ifdef __linux__
 /** Global variables **/
 static pthread_t tid;
-static sem_t semThr;
 static int thrId;
-
+static sem_t semThr;	//posix sem for threads
 
 /* Local prototypes */
 static void *threadRunner();
 static void secstoHuman(double);
-#endif
+static void filesizeStats(double);
+#endif //__linux__
 
 
 
@@ -94,7 +97,7 @@ inline void printSyntax(char *argv0)
 inline void printResults()
 {
 #ifdef WINZOZ
-	fprintf(stdout, "\nElapsed time (seconds):\t   %f\n", timeEnd-timeBegin);
+	fprintf(stdout, "\nElapsed time:\t\t   %lf sec\n", timeEnd-timeBegin);
 	fprintf(stdout, "Sequences generated:\t   %.0lf\n", numSeq);
 	fprintf(stdout, "Sequences/second:\t   %lf\n\n", numSeq/(timeEnd-timeBegin));
 
@@ -109,7 +112,10 @@ inline void printResults()
 /* Set and alloc sequence and lenght */
 inline void setSeq()
 {
-	char buff[BUFF], c;
+	char buff[BUFF];
+#ifdef __linux__
+    char c;
+#endif // __linux__
 	errno = 0;
 
 	if (len == 0) {
@@ -124,6 +130,7 @@ inline void setSeq()
 				len = 0;
 		} while (len <= 0 && fprintf(stderr, "Positive integers only! Try again:\t"));
 
+#ifdef __linux__
 		//check program updates
 		fprintf(stdout, "\nDo you want to check for available updates? (requires internet connection!)  [Y-N]\n");
 		do {
@@ -137,6 +144,7 @@ inline void setSeq()
 		} while (c != 'Y' && c != 'N' && fprintf(stdout, "Type only [Y-N]\n"));
 		if (c == 'Y')
 			checkVersion();
+#endif //__linux__
 	}
 	//alloc word string (+1 for newline, used for printing to file)
 	if ((word = (char *)malloc((len+1) * sizeof(char))) == NULL) {
@@ -146,7 +154,11 @@ inline void setSeq()
 	}
 	word[len] = '\n';
 	fprintf(stdout, "Lenght: %d, chars: %d, number of expected sequences: %.0lf\n", len, nchars, pow(nchars, len));
-	fprintf(stdout, "Press Ctrl+\\ to pause or Ctrl+C to exit.\n\n");
+	fprintf(stdout, "Press ");
+#ifdef __linux__
+    fprintf(stdout, "Ctrl+\\ to pause or ");
+#endif // __linux__
+	fprintf(stdout, "Ctrl+C to exit.\n\n");
 }
 
 
@@ -154,6 +166,7 @@ inline void setSeq()
 inline void setOper()
 {
 	char buff[BUFF];
+	double size;
 	errno = 0;
 
 	//mode=1: write to file
@@ -165,7 +178,8 @@ inline void setOper()
 			exit (EXIT_FAILURE);
 		}
 		sscanf(buff, "%s", dict);
-		fprintf(stdout, "\n");
+		size = (len + 1) * pow(nchars, len) / MEGA;
+		fprintf(stdout, "Expected total file size: %.2lf MB\n\n", size);
 	}
 	else
 		fout = stdout;
@@ -301,6 +315,9 @@ inline void freeExit()
 	if (pchars != chars)
 		free(pchars);
 	free(word);
+#ifdef __linux__
+	psemDestroy(sigSem);
+#endif //__linux__
 }
 
 
@@ -315,28 +332,39 @@ inline int procNumb()
 	GetSystemInfo(&info);
 #define sysconf(a) info.dwNumberOfProcessors
 #define _SC_NPROCESSORS_ONLN
-#endif
-#endif
+#endif //_SC_NPROCESSORS_ONLN
+#endif //WINZOZ
 
 #ifdef _SC_NPROCESSORS_ONLN
 	nprocs = sysconf(_SC_NPROCESSORS_ONLN);
 	if (nprocs < 1) {
-		//fprintf(stderr, "Could not determine number of CPUs online:\n%s\n", strerror (errno));
+#ifdef DEBUG
+		fprintf(stderr, "Could not determine number of CPUs online:\n%s\n\n", strerror (errno));
+#endif //DEBUG
 		return nprocs;
 	}
 	nprocs_max = sysconf(_SC_NPROCESSORS_CONF);
 	if (nprocs_max < 1)	{
-		//fprintf(stderr, "Could not determine number of CPUs configured:\n%s\n", strerror (errno));
+#ifdef DEBUG
+		fprintf(stderr, "Could not determine number of CPUs configured:\n%s\n\n", strerror (errno));
+#endif //DEBUG
 		return nprocs_max;
 	}
-	//fprintf(stdout, "%d of %d processors online\n", nprocs, nprocs_max);
+#ifdef DEBUG
+	fprintf(stdout, "%d of %d processors online\n\n", nprocs, nprocs_max);
+#endif //DEBUG
 	return nprocs;
 #else
-	//fprintf(stderr, "Could not determine number of CPUs.\n");
+#ifdef DEBUG
+	fprintf(stderr, "Could not determine number of CPUs.\n\n");
+#endif //DEBUG
 	return -1;
-#endif
+#endif //_SC_NPROCESSORS_ONLN
 }
 
+
+/* Linux specific functions */
+#ifdef __linux__
 
 /* Check current version with info on online repo */
 inline int checkVersion()
@@ -384,9 +412,6 @@ inline int checkVersion()
 	return (EXIT_SUCCESS);
 }
 
-
-/* Linux specific functions */
-#ifdef __linux__
 
 /* Write data to pipe */
 inline void writePipe(int *pDescr, double seq, double time)
@@ -506,7 +531,6 @@ void sigHandler(int sig)
 				psemSignal(sigSem);
 			clock_gettime(CLOCK_MONOTONIC, &ts2);
 			lag += SUMTIME(ts2, ts1);
-			
 		}
 		//childs wait for father signal
 		else {
@@ -515,7 +539,7 @@ void sigHandler(int sig)
 			//semaphore wait
 			psemWait(sigSem);
 
-			//wake up my thread
+			//wake up my thread and restart
 			sem_post(&semThr);
 			clock_gettime(CLOCK_MONOTONIC, &ts2);
 			lag += SUMTIME(ts2, ts1);
@@ -552,6 +576,13 @@ static void *threadRunner()
 {
     double totSeq, perc, loctime, seqSec;
     struct timespec timer;
+    sigset_t sigSet;
+
+    //reset thread's signals, to ignore previously settings
+	sigemptyset(&sigSet);
+	sigaddset(&sigSet, SIGINT);
+	sigaddset(&sigSet, SIGQUIT);
+	pthread_sigmask(SIG_BLOCK, &sigSet, NULL);
 
     //initialize thread semaphore
     sem_init(&semThr, 0, 0);
@@ -570,9 +601,14 @@ static void *threadRunner()
         //work progress
         perc = (numSeq / totSeq) * 100;
         seqSec = numSeq / loctime;
+
         //print stats
-        fprintf(stdout, "    Worker %2d: %6.3lf%% (%.0lf / %.0lf), sec %.3lf, seq/s %.3lf, time left ", thrId, perc, numSeq, totSeq, loctime, seqSec);
+        fprintf(stdout, "   Worker %2d: %4.2lf%% (%.0lf seq), %.1lf s, %.1lf seq/s, ETA ", thrId, perc, numSeq, loctime, seqSec);
         secstoHuman(totSeq/seqSec-loctime);
+        //in mode 1, print file size
+        if (mode == 1)
+        	filesizeStats(loctime);
+        fprintf(stdout, "\n");
     }
 
     sem_destroy(&semThr);
@@ -587,30 +623,43 @@ static void secstoHuman(double sec)
 
 	//from seconds calculate eventual minutes, hours, days and years
 	m = h = d = y = 0;
+	s = fmod(sec, 60);
 	if (sec >= 60) {
 		m = sec / 60;
 		if (m >= 60) {
 			h = m / 60;
+			m = fmod(m, 60);
 			if (h >= 24) {
 				d = h / 24;
-				if (d >= 365) 
+				h = fmod(h, 24);
+				if (d >= 365)  {
 					y = d / 365;
+					d = fmod(d, 365);
+				}
 			}
 		}
 	}
-	//exact relative quantity with modules
-	d = fmod(d, 365);
-	h = fmod(h, 24);
-	m = fmod(m, 60);
-	s = fmod(sec, 60);
-
 	//output
 	if (y > 0)
-		fprintf(stdout, "%.0lf years %.0lf days %02.0lf:%02.0lf:%02.0lf\n", y, d, h, m, s);
+		fprintf(stdout, "%.0lf years %.0lf days %02.0lf:%02.0lf:%02.0lf", y, d, h, m, s);
 	else if (d > 0)
-		fprintf(stdout, "%.0lf days %02.0lf:%02.0lf:%02.0lf\n", d, h, m, s);
+		fprintf(stdout, "%.0lf days %02.0lf:%02.0lf:%02.0lf", d, h, m, s);
 	else
-		fprintf(stdout, "%02.0lf:%02.0lf:%02.0lf\n", h, m, s);
+		fprintf(stdout, "%02.0lf:%02.0lf:%02.0lf", h, m, s);
+}
+
+
+/* Print statistics related to file size and write speed */
+static void filesizeStats(double sec)
+{
+	struct stat stt;
+	double size, speed;
+
+	stat(dict, &stt);
+	size = (double)stt.st_size / MEGA;
+	speed = size / sec;
+
+	fprintf(stdout, ", size %.1lf MB (%.1lf MB/s)", size, speed);
 }
 
 #endif //__linux__

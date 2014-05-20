@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-15]
+   Revision    [2014-05-20]
 
 ******************************************************************************/
 
@@ -29,7 +29,6 @@
 
 #ifdef __linux__
     #include <unistd.h>
-    #include <sys/types.h>
     #include <sys/wait.h>
     #include <fcntl.h>
 #elif defined _WIN32 || defined _WIN64
@@ -51,9 +50,9 @@
 
 /** Global variables **/
 /* len=sequence lenght, nchars=number of character on current set (chars)
-   left=left index of chars subset, right=right index of chars subset,
+   left=left index of chars subset, right=right index of chars subset, procs=number of processes
  */
-int len, nchars, left, right;
+int len, nchars, left, right, procs;
 double numSeq;      //counter for calculated sequences
 char mode, dict[BUFF], *word, *pchars;   //mode=calc mode, dict=output filename, word=sequence, pchars=alternate/general set of chars
 FILE *fout;
@@ -61,11 +60,11 @@ FILE *fout;
 #ifdef __linux__
 struct timespec tsBegin, tsEnd;   //monolitic time counter
 double calcTime, lag;    //store calculation time and lag time (for process suspension)
-int sigFlag, procs, forks, sigSem[2];    //sigFlag=flag for father process, procs=number of processes, forks=number of actual forks to do, sigSem=pipe semaphore for signal handler
+int sigFlag, forks, sigSem[2];    //sigFlag=flag for father process, forks=number of actual forks to do, sigSem=pipe semaphore for signal handler
 
 #elif defined WINZOZ
-float timeBegin, timeEnd;   //time counter
-#endif //__linux__
+double timeBegin, timeEnd;   //time counters
+#endif
 
 char chars[]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
               'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
@@ -103,7 +102,6 @@ int main(int argc, char *argv[])
 
 	//set number of processes based on number CPU cores found (x2)
 	procs = procNumb();
-	//procs = 1;
 
 	//set sequences stuff
 	setSeq();
@@ -128,9 +126,12 @@ int main(int argc, char *argv[])
 static inline void forkProc(void (*generator)(unsigned char))
 {
 #ifdef WINZOZ
-	timeBegin = ((float)clock())/CLOCKS_PER_SEC;
+	//open output file
+    fileDict(1);
+    fprintf(stdout, "Working...\n");
+	timeBegin = ((double)clock())/CLOCKS_PER_SEC;
 	generatorSingleI(0);
-	timeEnd = ((float)clock())/CLOCKS_PER_SEC;
+	timeEnd = ((double)clock())/CLOCKS_PER_SEC;
 
 #elif defined __linux__
 	int i, gap, rest=0, pData[2], pSem[2];
@@ -247,7 +248,7 @@ static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
 		freeExit();
 		exit (EXIT_FAILURE);
 	}
-	
+
 	//initialize semaphore for pipe use
 	psemInit(pSem);
 	psemSignal(pSem);
@@ -278,7 +279,6 @@ static inline void fatherFork(pid_t *pid, int *pSem, int *pData)
 	for (i=0; i<forks; i++)
 		waitpid(pid[i], NULL, 0);
 	psemDestroy(pSem);
-	psemDestroy(sigSem);
 
 	//get calculated data (written on pipe)
 	close(pData[1]);

@@ -3,7 +3,7 @@ Pw-Gen - Sequences generator
 
 Version:
 --------
-1.2.5 (2014-05-16)
+1.2.6 (2014-05-20)
 See ChangeLog for details. 
 
     TODO:
@@ -11,10 +11,9 @@ See ChangeLog for details.
     - verbose/debug mode
     - use of wchar.h
     - status save and restart (full process exit)
-    - file size prevision
 
     BUGS:
-    - crashes with casual 2nd arg, wrong behavior with more args
+    - args check
 
 
 Description:
@@ -44,6 +43,12 @@ Linux:
 
 Windows:
   Compile sources under "src\" with any software you prefer, then run from Windows CMD.
+  Could be necessary to compile with the define "_FILE_OFFSET_BITS=64".
+
+
+License:
+--------
+GPLv2, see LICENSE.md
 
 
 Author:
