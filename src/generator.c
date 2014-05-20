@@ -31,10 +31,6 @@
 /* Generator functions header */
 #include "generator.h"
 
-#ifdef __linux__
-    #include <unistd.h>
-#endif
-
 
 /* Recursive generator - Single thread */
 void generatorSingleR(unsigned char pos)
