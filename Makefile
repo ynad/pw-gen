@@ -2,7 +2,7 @@
 
 # Compilation variables
 CC=gcc
-CFLAGS=-Wall -O3 -D_FILE_OFFSET_BITS=64
+CFLAGS=-Wall -O3
 LDFLAGS=-lm -lrt -lpthread
 INCL=-I src/
 DEBUG=-g -DDEBUG

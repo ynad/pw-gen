@@ -26,6 +26,16 @@
 #define VERS "1.2.6"
 #define BUILD "2014-05-20"
 
+/* DEBUG mode */
+/*#ifndef DEBUG
+#define DEBUG
+#endif*/
+
+/* LFS - Large File Support */
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+#endif
+
 #define FALSE 0
 #define TRUE 1
 #define BUFF 256
