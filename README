@@ -43,7 +43,6 @@ Linux:
 
 Windows:
   Compile sources under "src\" with any software you prefer, then run from Windows CMD.
-  Could be necessary to compile with the define "_FILE_OFFSET_BITS=64".
 
 
 License:
