@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-20]
+   Revision    [2014-05-22]
 
 ******************************************************************************/
 
@@ -24,7 +24,7 @@
 
 /* Version code - keep UPDATED! */
 #define VERS "1.2.6"
-#define BUILD "2014-05-20"
+#define BUILD "2014-05-22"
 
 /* DEBUG mode */
 /*#ifndef DEBUG
