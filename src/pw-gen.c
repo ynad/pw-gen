@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-20]
+   Revision    [2014-05-22]
 
 ******************************************************************************/
 
@@ -78,7 +78,6 @@ char chars[]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q
 /* Local prototypes */
 static inline void forkProc(void (*generator)(unsigned char));
 #ifdef __linux__
-static inline void singProc();
 static inline int initFork(int *, pid_t **, int *, int *);
 static inline void indexFork(int, int);
 static inline void fatherFork(pid_t *, int *, int *);
@@ -100,7 +99,7 @@ int main(int argc, char *argv[])
 	//arguments check
 	argCheck(argc, argv);
 
-	//set number of processes based on number CPU cores found (x2)
+	//set number of processes based on number of CPU cores found
 	procs = procNumb();
 
 	//set sequences stuff
@@ -143,11 +142,9 @@ static inline void forkProc(void (*generator)(unsigned char))
 	//set signal handler for SIGQUIT (Ctrl-\)
 	signal(SIGQUIT, sigHandler);
 
-	//if single core, run simple generation
-	if (procs == 1) {
-		singProc();
-		return;
-	}
+	//if single core use single generator
+	if (procs == 1)
+		generator = generatorSingleI;
 
 	//START main CRONOMETER
 	clock_gettime(CLOCK_MONOTONIC, &tsBegin);
@@ -194,23 +191,6 @@ static inline void forkProc(void (*generator)(unsigned char))
 
 /* Linux specific functions */
 #ifdef __linux__
-
-/* Simple generation for single core */
-static inline void singProc()
-{
-	//initialize stuff
-	sigFlag = TRUE;
-	//open output file
-	fileDict(1);
-	fprintf(stdout, "Starting worker 1: left %2d, right %2d\n", 0, nchars);
-	//calculate
-	clock_gettime(CLOCK_MONOTONIC, &tsBegin);
-	generatorSingleI(0);
-	clock_gettime(CLOCK_MONOTONIC, &tsEnd);
-	calcTime = SUMTIME(tsEnd, tsBegin) - lag;
-	fprintf(stdout, "Worker 1: numSeq %.0lf, sec %lf, seq/s %lf\n", numSeq, calcTime, numSeq/calcTime);
-}
-
 
 /* Initialize stuff for process forking */
 static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
