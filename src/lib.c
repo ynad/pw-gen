@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-20]
+   Revision    [2014-05-22]
 
 ******************************************************************************/
 
@@ -297,7 +297,7 @@ inline int readChars()
 inline void fileDict(int n)
 {
 	//add file number and file extension
-	sprintf(dict, "%s-%d.%s", dict, n, EXTN);
+	sprintf(dict, "%s-%02d.%s", dict, n, EXTN);
 	//and open it in binary mode
 	if ((fout = fopen(dict, "wb")) == NULL) {
 			fprintf(stderr, "Error opening file \"%s\": %s.\n", dict, strerror(errno));
