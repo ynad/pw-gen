@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-22]
+   Revision    [2014-05-24]
 
 ******************************************************************************/
 
@@ -539,10 +539,10 @@ void sigHandler(int sig)
 			//semaphore wait
 			psemWait(sigSem);
 
-			//wake up my thread and restart
-			sem_post(&semThr);
 			clock_gettime(CLOCK_MONOTONIC, &ts2);
 			lag += SUMTIME(ts2, ts1);
+			//wake up my thread and restart
+			sem_post(&semThr);
 		}
 	}
 	//signal used by fork's threads
@@ -593,8 +593,9 @@ static void *threadRunner()
     perc = 0;
     totSeq = SEQPART();
 
+    //short timeout
+	sleep(SLEPTM/2);
     while (perc < MAXPERC) {
-        sleep(SLEPTM);
         //time elapsed until now
         clock_gettime(CLOCK_MONOTONIC, &timer);
         loctime = SUMTIME(timer, tsBegin) - lag;
@@ -609,6 +610,8 @@ static void *threadRunner()
         if (mode == 1)
         	filesizeStats(loctime);
         fprintf(stdout, "\n");
+        //sleep a while
+		sleep(SLEPTM);
     }
 
     sem_destroy(&semThr);
