@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-22]
+   Revision    [2014-05-24]
 
 ******************************************************************************/
 
@@ -171,7 +171,7 @@ static inline void forkProc(void (*generator)(unsigned char))
 			clock_gettime(CLOCK_MONOTONIC, &tsEnd);
 			//calculate elapsed time
 			calcTime = SUMTIME(tsEnd, tsBegin) - lag;
-			fprintf(stdout, "Finished worker %2d: numSeq %.0lf, sec %lf, seq/s %lf\n", i+1, numSeq, calcTime, numSeq/calcTime);
+			fprintf(stdout, "Finished worker %2d: %.0lf seq, %lf s, %lf seq/s\n", i+1, numSeq, calcTime, numSeq/calcTime);
 
 			//save to pipe, use of pipe semaphore
 			psemWait(pSem);
