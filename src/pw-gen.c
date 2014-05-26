@@ -125,9 +125,10 @@ int main(int argc, char *argv[])
 static inline void forkProc(void (*generator)(unsigned char))
 {
 #ifdef WINZOZ
-	//open output file
-    fileDict(1);
-    fprintf(stdout, "Working...\n");
+	//open output file in mode=1
+	if (mode == 1)
+		fileDict(1);
+	fprintf(stdout, "Working...\n");
 	timeBegin = ((double)clock())/CLOCKS_PER_SEC;
 	generatorSingleI(0);
 	timeEnd = ((double)clock())/CLOCKS_PER_SEC;
