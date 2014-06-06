@@ -1,3 +1,12 @@
+Version 1.2.7 (changes from 1.2.6) - Released 28/05/2014:
+* Same print format for time elapsed as for estimated time left
+* "_FILE_OFFSET_BITS=64" define moved again to Makefile
+* Fixed exit of all threads on SIGINT
+* Fixed conversion of seconds to human legible format
+* More accurate monitoring of speed (generation and writing)
+* Disabled fclose() due to high load with big files: files are automatically closed on program exit
+* Other small fixes and code reorganized
+
 Version 1.2.6 (changes from 1.2.5) - Released 22/05/2014:
 * Estimation of output file size
 * Show writing speed

@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-20]
+   Revision    [2014-05-28]
 
 ******************************************************************************/
 
@@ -52,9 +52,15 @@ inline void freeExit();
 /* CPU cores counter */
 inline int procNumb();
 
+/* Convert and print seconds to human legible format */
+inline void secstoHuman(double, int);
+
 
 /* Linux specific functions */
 #ifdef __linux__
+
+/* Print statistics related to file size and write speed */
+inline void filesizeStats(double, double *);
 
 /* Check current version with info on online repo */
 inline int checkVersion();

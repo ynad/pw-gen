@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-22]
+   Revision    [2014-05-27]
 
 ******************************************************************************/
 
@@ -23,8 +23,8 @@
 
 
 /* Version code - keep UPDATED! */
-#define VERS "1.2.6"
-#define BUILD "2014-05-22"
+#define VERS "1.2.7"
+#define BUILD "2014-05-28"
 
 /* DEBUG mode */
 /*#ifndef DEBUG
@@ -60,7 +60,7 @@ extern FILE *fout;
 #ifdef __linux__
 extern struct timespec tsBegin;
 extern double calcTime, lag;
-extern int sigFlag, forks, sigSem[];
+extern int sigFlag, forks, sigSem[], fileSem[];
 
 #elif defined WINZOZ
 extern double timeBegin, timeEnd;

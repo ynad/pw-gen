@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-24]
+   Revision    [2014-05-28]
 
 ******************************************************************************/
 
@@ -60,7 +60,7 @@ FILE *fout;
 #ifdef __linux__
 struct timespec tsBegin, tsEnd;   //monolitic time counter
 double calcTime, lag;    //store calculation time and lag time (for process suspension)
-int sigFlag, forks, sigSem[2];    //sigFlag=flag for father process, forks=number of actual forks to do, sigSem=pipe semaphore for signal handler
+int sigFlag, forks, sigSem[2], fileSem[2];    //sigFlag=flag for father process, forks=number of actual forks to do, sigSem=pipe semaphore for signal handler, fileSem=pipe semaphore for fclose() in mode=1
 
 #elif defined WINZOZ
 double timeBegin, timeEnd;   //time counters
@@ -71,7 +71,7 @@ char chars[]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q
               '0','1','2','3','4','5','6','7','8','9',
 			  '!','?','"','$','%','&','/','(',')','=','^','<','>','+','*','-',',',';','.',':','@','#','[',']','|',' '
               //'è','é','ò','ç','à','ì','°','ù','§','£','€'  must use wchar.h
-			  ,'\n'
+			  ,'\n'		//used just in iterative generators
               };
 
 
@@ -88,11 +88,6 @@ static inline void fatherFork(pid_t *, int *, int *);
 /** Main **/
 int main(int argc, char *argv[])
 {
-#ifdef __linux__
-	//set signal handler for SIGINT (Ctrl-C)
-	signal(SIGINT, sigHandler);
-#endif //__linux__
-
 	//print program header
 	printHeader();
 
@@ -138,19 +133,11 @@ static inline void forkProc(void (*generator)(unsigned char))
 	pid_t *pid;
 	errno = 0;
 
-	//initialize suspension semaphore
-	psemInit(sigSem);
-	//set signal handler for SIGQUIT (Ctrl-\)
-	signal(SIGQUIT, sigHandler);
-
+	//init stuff
+	gap = initFork(&rest, &pid, pData, pSem);
 	//if single core use single generator
 	if (procs == 1)
 		generator = generatorSingleI;
-
-	//START main CRONOMETER
-	clock_gettime(CLOCK_MONOTONIC, &tsBegin);
-	//init stuff
-	gap = initFork(&rest, &pid, pData, pSem);
 
 	for (i=0; i<forks; i++) {
 		//fork
@@ -164,7 +151,11 @@ static inline void forkProc(void (*generator)(unsigned char))
 			//start watchThread
 			watchThread(i+1);
 
-			fprintf(stdout, "Starting worker %2d: left %2d, right %2d, seq %0.lf\n", i+1, left, right-1, SEQPART());
+			fprintf(stdout, "Starting worker %2d: left %2d, right %2d, %0.lf seq", i+1, left, right-1, SEQPART());
+			if (mode == 1)
+				fprintf(stdout, ", file \"%s\"", dict);
+			fprintf(stdout, "\n");
+
 			//reSTART local CRONOMETER
 			clock_gettime(CLOCK_MONOTONIC, &tsBegin);
 			generator(0);
@@ -172,7 +163,14 @@ static inline void forkProc(void (*generator)(unsigned char))
 			clock_gettime(CLOCK_MONOTONIC, &tsEnd);
 			//calculate elapsed time
 			calcTime = SUMTIME(tsEnd, tsBegin) - lag;
-			fprintf(stdout, "Finished worker %2d: %.0lf seq, %lf s, %lf seq/s\n", i+1, numSeq, calcTime, numSeq/calcTime);
+
+			fprintf(stdout, "Finished worker %2d: %.0lf seq, ", i+1, numSeq);
+			secstoHuman(calcTime, TRUE);
+			fprintf(stdout, ", %lf seq/s", numSeq/calcTime);
+			//in mode 1, print file size
+			if (mode == 1)
+				filesizeStats(calcTime, NULL);
+			fprintf(stdout, "\n");
 
 			//save to pipe, use of pipe semaphore
 			psemWait(pSem);
@@ -197,6 +195,18 @@ static inline void forkProc(void (*generator)(unsigned char))
 static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
 {
 	int gap;
+
+#ifdef DEBUG
+	//START main CRONOMETER
+	clock_gettime(CLOCK_MONOTONIC, &tsBegin);
+#endif //DEBUG
+
+	//set signal handler for SIGINT (Ctrl-C)
+	signal(SIGINT, sigHandler);
+	//initialize suspension semaphore
+	psemInit(sigSem);
+	//set signal handler for SIGQUIT (Ctrl-\)
+	signal(SIGQUIT, sigHandler);
 
 	//init some stuff
 	sigFlag = FALSE;
@@ -230,6 +240,11 @@ static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
 		exit (EXIT_FAILURE);
 	}
 
+	//semaphore for fclose() in mode=1 - Disabled, see freeExit()
+	/*if (mode == 1) {
+		psemInit(fileSem);
+		psemSignal(fileSem);
+	}*/
 	//initialize semaphore for pipe use
 	psemInit(pSem);
 	psemSignal(pSem);

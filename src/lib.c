@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-24]
+   Revision    [2014-06-04]
 
 ******************************************************************************/
 
@@ -68,8 +68,6 @@ static sem_t semThr;	//posix sem for threads
 
 /* Local prototypes */
 static void *threadRunner();
-static void secstoHuman(double);
-static void filesizeStats(double);
 #endif //__linux__
 
 
@@ -96,13 +94,16 @@ inline void printSyntax(char *argv0)
 /* Print program results */
 inline void printResults()
 {
+		fprintf(stdout, "\nElapsed time:\t\t   ");
 #ifdef WINZOZ
-	fprintf(stdout, "\nElapsed time:\t\t   %lf sec\n", timeEnd-timeBegin);
+	secstoHuman(timeEnd-timeBegin, TRUE);
+	fprintf(stdout, "\n");
 	fprintf(stdout, "Sequences generated:\t   %.0lf\n", numSeq);
 	fprintf(stdout, "Sequences/second:\t   %lf\n\n", numSeq/(timeEnd-timeBegin));
 
 #elif defined __linux__
-	fprintf(stdout, "\nElapsed time:\t\t   %lf sec\n", calcTime);
+	secstoHuman(calcTime, TRUE);
+	fprintf(stdout, "\n");
 	fprintf(stdout, "Sequences generated:\t   %.0lf\n", numSeq);
 	fprintf(stdout, "Sequences/second:\t   %lf\n\n", numSeq/calcTime);
 #endif //__linux__
@@ -310,11 +311,21 @@ inline void fileDict(int n)
 /* Clear memory and other stuff */
 inline void freeExit()
 {
-	if (fout != NULL && fout != stdout)
-		fclose(fout);
 	if (pchars != chars)
 		free(pchars);
 	free(word);
+	/* Disabled fclose() due to high load with big files - To re-enable uncomment also semaphore init in initFork() !
+	if (mode == 1 && fout != NULL && fout != stdout) {
+		//avoid program lock on file closing
+#ifdef __linux__
+		psemWait(fileSem);
+#endif //__linux__
+		fclose(fout);
+#ifdef __linux__
+		psemSignal(fileSem);
+		psemDestroy(fileSem);
+#endif //__linux__
+	}*/
 #ifdef __linux__
 	psemDestroy(sigSem);
 #endif //__linux__
@@ -363,8 +374,69 @@ inline int procNumb()
 }
 
 
+/* Convert and print seconds to human legible format */
+inline void secstoHuman(double sec, int precision)
+{
+	double s, m, h, d, y;			//values without rest
+	double min, hour, day, year;	//values with rest
+
+	//from seconds calculate eventual minutes, hours, days and years
+	m = h = d = y = 0;
+	min = hour = day = year = 0;
+	s = fmod(sec, 60);
+	if (sec >= 60) {
+		m = (sec - s) / 60;
+		if (m >= 60) {
+			min = m;
+			m = fmod(min, 60);
+			h = (min - m) / 60;
+			if (h >= 24) {
+				hour = h;
+				h = fmod(hour, 24);
+				d = (hour - h) / 24;
+				if (d >= 365)  {
+					day = d;
+					d = fmod(day, 365);
+					y = (day - d) / 365;
+				}
+			}
+		}
+	}
+	//output
+	if (y > 0)
+		fprintf(stdout, "%.0lf years ", y);
+	if (d > 0)
+		fprintf(stdout, "%.0lf days ", d);
+	fprintf(stdout, "%02.0lf:%02.0lf:", h, m);
+	//print full fractional part for high precision
+	if (precision == TRUE)
+		fprintf(stdout, "%02lf", s);
+	else
+		//printf may approximate values between 59.5 and 59.9 to 60
+		fprintf(stdout, "%02.0lf", s);
+}
+
+
 /* Linux specific functions */
 #ifdef __linux__
+
+/* Print statistics related to file size and write speed */
+inline void filesizeStats(double sec, double *oldSize)
+{
+	struct stat stt;
+	double size, speed;
+
+	stat(dict, &stt);
+	size = (double)stt.st_size / MEGA;
+	if (oldSize == NULL)
+		speed = size / sec;
+	else {
+		speed = (size - (*oldSize)) / sec;
+		*oldSize = size;
+	}
+	fprintf(stdout, ", size %.1lf MB (%.1lf MB/s)", size, speed);
+}
+
 
 /* Check current version with info on online repo */
 inline int checkVersion()
@@ -501,7 +573,7 @@ void sigHandler(int sig)
 
 	//Ctrl-C: whole program exits
 	if (sig == SIGINT) {
-		//only father prints
+		//only father enters
 		if (sigFlag == TRUE)
 			fprintf(stderr, "\nReceived signal SIGINT (%d): exiting.\n", sig);
 		//only childs
@@ -510,10 +582,9 @@ void sigHandler(int sig)
 
 		//pre-exit stuff
 		freeExit();
+		//now I can exit, threads will be stopped too
+		exit (EXIT_FAILURE);
 
-		//reset sigHandler and exit
-		signal(SIGINT, SIG_DFL);
-		raise(SIGINT);
 	}
 	//Ctrl-\: whole program suspends
 	else if (sig == SIGQUIT) {
@@ -574,7 +645,7 @@ inline void watchThread(int id)
 /* Watch thread */
 static void *threadRunner()
 {
-    double totSeq, perc, loctime, seqSec;
+    double locSeq, totSeq, perc, seqSec, totTime, oldSize;
     struct timespec timer;
     sigset_t sigSet;
 
@@ -589,80 +660,41 @@ static void *threadRunner()
     //set signal handler (use SIGUSR1)
     signal(SIGUSR1, sigHandler);
 
-    //calculate data
-    perc = 0;
+    //init data
+    oldSize = 0;
     totSeq = SEQPART();
 
     //short timeout
-	sleep(SLEPTM/2);
+	sleep(SLEPTM);
+	locSeq = numSeq;
+	perc = (numSeq / totSeq) * 100;
     while (perc < MAXPERC) {
         //time elapsed until now
         clock_gettime(CLOCK_MONOTONIC, &timer);
-        loctime = SUMTIME(timer, tsBegin) - lag;
-        //work progress
-        perc = (numSeq / totSeq) * 100;
-        seqSec = numSeq / loctime;
+        totTime = SUMTIME(timer, tsBegin) - lag;
+        //stats
+		seqSec = locSeq / SLEPTM;
+		locSeq = numSeq;
 
         //print stats
-        fprintf(stdout, "   Worker %2d: %4.2lf%% (%.0lf seq), %.1lf s, %.1lf seq/s, ETA ", thrId, perc, numSeq, loctime, seqSec);
-        secstoHuman(totSeq/seqSec-loctime);
+        fprintf(stdout, "   Worker %2d: %5.2lf%% (%.0lf seq), ", thrId, perc, numSeq);
+        secstoHuman(totTime, FALSE);
+        fprintf(stdout, ", %.1lf seq/s, ETA ", seqSec);
+        secstoHuman(totSeq/seqSec-totTime, FALSE);
         //in mode 1, print file size
         if (mode == 1)
-        	filesizeStats(loctime);
+        	filesizeStats(SLEPTM, &oldSize);
         fprintf(stdout, "\n");
+
         //sleep a while
 		sleep(SLEPTM);
+		//more stats
+		locSeq = numSeq - locSeq;
+		perc = (numSeq / totSeq) * 100;
     }
 
     sem_destroy(&semThr);
     pthread_exit(NULL);
-}
-
-
-/* Convert and print seconds to human legible format */
-static void secstoHuman(double sec)
-{
-	double s, m, h, d, y;
-
-	//from seconds calculate eventual minutes, hours, days and years
-	m = h = d = y = 0;
-	s = fmod(sec, 60);
-	if (sec >= 60) {
-		m = sec / 60;
-		if (m >= 60) {
-			h = m / 60;
-			m = fmod(m, 60);
-			if (h >= 24) {
-				d = h / 24;
-				h = fmod(h, 24);
-				if (d >= 365)  {
-					y = d / 365;
-					d = fmod(d, 365);
-				}
-			}
-		}
-	}
-	//output
-	if (y > 0)
-		fprintf(stdout, "%.0lf years %.0lf days %02.0lf:%02.0lf:%02.0lf", y, d, h, m, s);
-	else if (d > 0)
-		fprintf(stdout, "%.0lf days %02.0lf:%02.0lf:%02.0lf", d, h, m, s);
-	else
-		fprintf(stdout, "%02.0lf:%02.0lf:%02.0lf", h, m, s);
-}
-
-
-/* Print statistics related to file size and write speed */
-static void filesizeStats(double sec)
-{
-	struct stat stt;
-	double size, speed;
-
-	stat(dict, &stt);
-	size = (double)stt.st_size / MEGA;
-	speed = size / sec;
-
-	fprintf(stdout, ", size %.1lf MB (%.1lf MB/s)", size, speed);
 }
 
 #endif //__linux__
