@@ -3,7 +3,7 @@ Pw-Gen - Sequences generator
 
 Version:
 --------
-1.2.6 (2014-05-22)
+1.2.7 (2014-05-28)
 See ChangeLog for details. 
 
     TODO:
@@ -43,6 +43,7 @@ Linux:
 
 Windows:
   Compile sources under "src\" with any software you prefer, then run from Windows CMD.
+  It's mandatory to compile with the define "_FILE_OFFSET_BITS=64" in compiler settings!
 
 
 License:
