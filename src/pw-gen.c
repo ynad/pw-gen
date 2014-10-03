@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-28]
+   Revision    [2014-10-02]
 
 ******************************************************************************/
 
@@ -36,6 +36,8 @@
     #define WINZOZ
     #include <windows.h>
     #include <conio.h>
+    #define CHARFILE "chars-"
+    #define CHAREXT "txt"
 #else
     #error "Unknown platform"
 #endif
@@ -50,24 +52,24 @@
 
 /** Global variables **/
 /* len=sequence lenght, nchars=number of character on current set (chars)
-   left=left index of chars subset, right=right index of chars subset, procs=number of processes
+   left=left index of chars subset, right=right index of chars subset, procs=number of processes, forks=number of actual forks to do
  */
-int len, nchars, left, right, procs;
+int len, nchars, left, right, procs, forks;
 double numSeq;      //counter for calculated sequences
-char mode, dict[BUFF], *word, *pchars;   //mode=calc mode, dict=output filename, word=sequence, pchars=alternate/general set of chars
+char mode, dict[BUFF], *word, *pchars, *argv0;   //mode=calc mode, dict=output filename, word=sequence, pchars=alternate/general set of chars, argv0=pointer to argv[0]
 FILE *fout;
 
 #ifdef __linux__
 struct timespec tsBegin, tsEnd;   //monolitic time counter
 double calcTime, lag;    //store calculation time and lag time (for process suspension)
-int sigFlag, forks, sigSem[2], fileSem[2];    //sigFlag=flag for father process, forks=number of actual forks to do, sigSem=pipe semaphore for signal handler, fileSem=pipe semaphore for fclose() in mode=1
+int sigFlag, sigSem[2], fileSem[2];    //sigFlag=flag for father process, sigSem=pipe semaphore for signal handler, fileSem=pipe semaphore for fclose() in mode=1
 
 #elif defined WINZOZ
 double timeBegin, timeEnd;   //time counters
 #endif
 
-char chars[]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
-              'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+char chars[]={'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+			  'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
               '0','1','2','3','4','5','6','7','8','9',
 			  '!','?','"','$','%','&','/','(',')','=','^','<','>','+','*','-',',',';','.',':','@','#','[',']','|',' '
               //'è','é','ò','ç','à','ì','°','ù','§','£','€'  must use wchar.h
@@ -77,12 +79,12 @@ char chars[]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q
 
 /* Local prototypes */
 static inline void forkProc(void (*generator)(unsigned char));
-#ifdef __linux__
-static inline int initFork(int *, pid_t **, int *, int *);
+static inline int gapSplit();
 static inline void indexFork(int, int);
+#ifdef __linux__
+static inline int initFork(pid_t **, int *, int *);
 static inline void fatherFork(pid_t *, int *, int *);
 #endif //__linux__
-
 
 
 /** Main **/
@@ -112,6 +114,10 @@ int main(int argc, char *argv[])
 	printResults();
 
 	freeExit();
+#ifdef WINZOZ
+	fprintf(stdout, "\nTerminated!\nPress any key to close this window...\n");
+	getchar();
+#endif
 	return (EXIT_SUCCESS);
 }
 
@@ -119,25 +125,19 @@ int main(int argc, char *argv[])
 /* Multi fork */
 static inline void forkProc(void (*generator)(unsigned char))
 {
-#ifdef WINZOZ
-	//open output file in mode=1
-	if (mode == 1)
-		fileDict(1);
-	fprintf(stdout, "Working...\n");
-	timeBegin = ((double)clock())/CLOCKS_PER_SEC;
-	generatorSingleI(0);
-	timeEnd = ((double)clock())/CLOCKS_PER_SEC;
-
-#elif defined __linux__
-	int i, gap, rest=0, pData[2], pSem[2];
-	pid_t *pid;
+	int i;
 	errno = 0;
 
-	//init stuff
-	gap = initFork(&rest, &pid, pData, pSem);
+#ifdef __linux__
+	pid_t *pid;
+	int gap, pData[2], pSem[2];
+
 	//if single core use single generator
 	if (procs == 1)
 		generator = generatorSingleI;
+
+	//init stuff
+	gap = initFork(&pid, pData, pSem);
 
 	for (i=0; i<forks; i++) {
 		//fork
@@ -184,15 +184,89 @@ static inline void forkProc(void (*generator)(unsigned char))
 	}
 	fatherFork(pid, pSem, pData);
 
-#endif //__linux__
+
+#elif defined WINZOZ
+	char tmp[BUFF];
+	int gap;
+	//pointer to function, in order to use optimized generator (generatorSingleI()) in case of single core mode
+	void (*genFunction)(unsigned char) = generator;
+
+	//single core mode or flag for sub-process of multi flow execution
+	if (procs == 1 || forks < 0) {
+		//in single core mode use different generator
+		if (procs == 1)
+			genFunction = generatorSingleI;
+		//open output file in mode=1
+		if (mode == 1)
+			fileDict(1);
+		fprintf(stdout, "Working...\n");
+		timeBegin = ((double)clock())/CLOCKS_PER_SEC;
+		genFunction(0);
+		timeEnd = ((double)clock())/CLOCKS_PER_SEC;
+	}
+	//multi flow execution
+	else {
+		//init stuff
+		gap = gapSplit();
+		//launch new terminals
+		for (i=0; i<forks; i++) {
+			//indexes
+			indexFork(i, gap);
+			//launch new process
+			sprintf(tmp, "start %s %d %d X %d %d %d %d", argv0, mode, len, i+1, forks, left, right);
+			if (mode == 1)
+				sprintf(tmp, "%s %s", tmp, dict);
+			system(tmp);
+		}
+		fprintf(stdout, "\n%d forks started.\nPress any key to close this window...\n", forks);
+		system("pause >nul");
+		freeExit();
+		exit (EXIT_SUCCESS);
+	}
+#endif //WINZOZ
+}
+
+
+/* Calculate gap, rest and number of requested forks */
+static inline int gapSplit()
+{
+	int gap, rest;
+
+	forks = procs;
+	//gap on number of chars and eventual rest
+	gap = nchars / procs;
+	rest = nchars % procs;
+
+	//one more fork if there's rest
+	if (rest != 0) {
+		forks++;
+		//and avoid rest bigger than standard gap
+		while (rest > gap) {
+			forks++;
+			rest -= gap;
+		}
+	}
+	return gap;
+}
+
+
+/* Calculate indexes for job division */
+static inline void indexFork(int i, int gap)
+{
+	//left and right indexes
+	left = gap*i;
+	right = gap*i + gap;
+	//if right index is out of bounds, set it to nchars
+	if (right > nchars)
+		right = nchars;
 }
 
 
 /* Linux specific functions */
 #ifdef __linux__
 
-/* Initialize stuff for process forking */
-static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
+/* Initialize stuff for process forking - Linux */
+static inline int initFork(pid_t **pid, int *pData, int *pSem)
 {
 	int gap;
 
@@ -210,20 +284,7 @@ static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
 
 	//init some stuff
 	sigFlag = FALSE;
-	forks = procs;
-	//gap on number of chars and eventual rest
-	gap = nchars / procs;
-	*rest = nchars % procs;
-
-	//one more fork if there's rest
-	if (*rest != 0) {
-		forks++;
-		//and avoid rest bigger than standard gap
-		while (*rest > gap) {
-			forks++;
-			*rest -= gap;
-		}
-	}
+	gap = gapSplit();
 
 	//pids vector allocation
 	if ((*pid = (pid_t *)malloc(forks * sizeof(pid_t))) == NULL) {
@@ -253,18 +314,6 @@ static inline int initFork(int *rest, pid_t **pid, int *pData, int *pSem)
 }
 
 
-/* Calculate indexes for job division */
-static inline void indexFork(int i, int gap)
-{
-	//left and right indexes
-	left = gap*i;
-	right = gap*i + gap;
-	//if right index is out of bounds, set it to nchars
-	if (right > nchars)
-		right = nchars;
-}
-
-
 /* Father process, wait and gather calculated data */
 static inline void fatherFork(pid_t *pid, int *pSem, int *pData)
 {
@@ -289,6 +338,5 @@ static inline void fatherFork(pid_t *pid, int *pSem, int *pData)
 	fprintf(stdout, "\nAll workers have finished:\n\tCalc time:\t%lf\n\tRun time:\t%lf\n\tTot time:\t%lf\n\tLag time:\t%lf\n", calcTime, SUMTIME(tsEnd, tsBegin) - lag, SUMTIME(tsEnd, tsBegin), lag);
 #endif //DEBUG
 }
-
 #endif //__linux__
 

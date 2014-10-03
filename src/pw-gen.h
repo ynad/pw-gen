@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-27]
+   Revision    [2014-06-16]
 
 ******************************************************************************/
 
@@ -23,8 +23,8 @@
 
 
 /* Version code - keep UPDATED! */
-#define VERS "1.2.7"
-#define BUILD "2014-05-28"
+#define VERS "1.2.8"
+#define BUILD "2014-10-02"
 
 /* DEBUG mode */
 /*#ifndef DEBUG
@@ -52,15 +52,15 @@
 
 
 /** Global variables - See pw-gen.c for details **/
-extern int len, nchars, left, right, procs;
+extern int len, nchars, left, right, procs, forks;
 extern double numSeq;
-extern char mode, dict[], *word, *pchars, chars[];
+extern char mode, dict[], *word, *pchars, chars[], *argv0;
 extern FILE *fout;
 
 #ifdef __linux__
 extern struct timespec tsBegin;
 extern double calcTime, lag;
-extern int sigFlag, forks, sigSem[], fileSem[];
+extern int sigFlag, sigSem[], fileSem[];
 
 #elif defined WINZOZ
 extern double timeBegin, timeEnd;

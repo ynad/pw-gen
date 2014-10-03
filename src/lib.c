@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-06-04]
+   Revision    [2014-10-02]
 
 ******************************************************************************/
 
@@ -28,17 +28,17 @@
 #include <math.h>
 
 #ifdef __linux__
-    #include <unistd.h>
-    #include <signal.h>
-   	#include <pthread.h>
-   	#include <semaphore.h>
-   	#include <sys/stat.h>
+	#include <unistd.h>
+	#include <signal.h>
+	#include <pthread.h>
+	#include <semaphore.h>
+	#include <sys/stat.h>
 #elif defined _WIN32 || defined _WIN64
-    #define WIN32_LEAN_AND_MEAN
-    #define WINZOZ
-    #include <windows.h>
+	#define WIN32_LEAN_AND_MEAN
+	#define WINZOZ
+	#include <windows.h>
 #else
-    #error "Unknown platform"
+	#error "Unknown platform"
 #endif
 
 /* Base header */
@@ -75,9 +75,9 @@ static void *threadRunner();
 /* Print program header */
 inline void printHeader()
 {
-    fprintf(stdout, "\n =======================================================================\n");
-    fprintf(stdout, "         Pw-Gen  |  Sequences generator - v. %s (%s)\n", VERS, BUILD);
-    fprintf(stdout, " =======================================================================\n\n");
+	fprintf(stdout, "\n =======================================================================\n");
+	fprintf(stdout, "         Pw-Gen  |  Sequences generator - v. %s (%s)\n", VERS, BUILD);
+	fprintf(stdout, " =======================================================================\n\n");
 }
 
 
@@ -114,8 +114,9 @@ inline void printResults()
 inline void setSeq()
 {
 	char buff[BUFF];
+	double seq;
 #ifdef __linux__
-    char c;
+	char c;
 #endif // __linux__
 	errno = 0;
 
@@ -154,10 +155,17 @@ inline void setSeq()
 		exit (EXIT_FAILURE);
 	}
 	word[len] = '\n';
-	fprintf(stdout, "Lenght: %d, chars: %d, number of expected sequences: %.0lf\n", len, nchars, pow(nchars, len));
+	seq = pow(nchars, len);
+#ifdef WINZOZ
+	//determine expected sequences in case of multi flow process (Windows only)
+	if (forks < 0)
+		seq = seq / (forks * (-1));
+#endif //WINZOZ
+
+	fprintf(stdout, "Lenght: %d, chars: %d (\"%c\",\"%c\"), number of expected sequences: %.0lf\n", len, nchars, pchars[0], pchars[nchars-1], seq);
 	fprintf(stdout, "Press ");
 #ifdef __linux__
-    fprintf(stdout, "Ctrl+\\ to pause or ");
+	fprintf(stdout, "Ctrl+\\ to pause or ");
 #endif // __linux__
 	fprintf(stdout, "Ctrl+C to exit.\n\n");
 }
@@ -172,14 +180,22 @@ inline void setOper()
 
 	//mode=1: write to file
 	if (mode == 1) {
-		fprintf(stdout, "Output file (NO file extension):\t");
-		if (fgets(buff, BUFF-1, stdin) == NULL) {
-			fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
-			freeExit();
-			exit (EXIT_FAILURE);
+		//skip this step in case of Windows multi-flow execution (filename already provided)
+		if (dict[0] == '\0') {
+			fprintf(stdout, "Output file (NO file extension):\t");
+			if (fgets(buff, BUFF-1, stdin) == NULL) {
+				fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+				freeExit();
+				exit (EXIT_FAILURE);
+			}
+			sscanf(buff, "%s", dict);
 		}
-		sscanf(buff, "%s", dict);
 		size = (len + 1) * pow(nchars, len) / MEGA;
+#ifdef WINZOZ
+	//determine expected file size in case of multi flow process (Windows only)
+	if (forks < 0)
+		size = size / (forks * (-1));
+#endif //WINZOZ
 		fprintf(stdout, "Expected total file size: %.2lf MB\n\n", size);
 	}
 	else
@@ -207,6 +223,8 @@ inline void argCheck(int argc, char **argv)
 	right = nchars;
 	word = NULL;
 	fout = NULL;
+	dict[0] = '\0';
+	argv0 = argv[0];
 	//set lenght OR chars subset if defined
 	if (argc == 3) {
 		len = atoi(argv[2]);
@@ -217,17 +235,17 @@ inline void argCheck(int argc, char **argv)
 		if (toupper(argv[3][0]) == 'S')
 			nchars = NUM_STD;
 		else if (toupper(argv[3][0]) == 'P') {
-			nchars = readChars();
+			nchars = readChars(NULL);
 		}
 	}
 	//set lenght AND chars subset if defined
-	else if (argc == 4) {
+	else if (argc >= 4) {
 		//check argv2
 		if ((l = atoi(argv[2])) <= 0) {
 			if (toupper(argv[2][0]) == 'S')
 				nchars = NUM_STD;
 			else if (toupper(argv[2][0]) == 'P')
-				nchars = readChars();
+				nchars = readChars(NULL);
 		}
 		else
 			len = l;
@@ -236,7 +254,26 @@ inline void argCheck(int argc, char **argv)
 			if (toupper(argv[3][0]) == 'S')
 				nchars = NUM_STD;
 			else if (toupper(argv[3][0]) == 'P')
-				nchars = readChars();
+				nchars = readChars(NULL);
+#ifdef WINZOZ
+			//flag used only in windows multi flow mode - override user action
+			else if (toupper(argv[3][0]) == 'X') {
+				//use as flag
+				forks = atoi(argv[5]) * (-1);
+				//set indexes
+				left = atoi(argv[6]);
+				right = atoi(argv[7]);
+				fprintf(stdout, "Running Fork: %s", argv[4]);
+				//use same filename for output file
+				if (mode == 1) {
+					strcpy(dict, argv[8]);
+					strcat(dict, "-");
+					strcat(dict, argv[4]);
+					fprintf(stdout, ", using output file: \"%s-01.%s\"", dict, EXTN);
+				}
+				fprintf(stdout, ".\n");
+			}
+#endif //WINZOZ
 		}
 		else
 			len = l;
@@ -245,7 +282,7 @@ inline void argCheck(int argc, char **argv)
 
 
 /* Read set of chars from file */
-inline int readChars()
+inline int readChars(char *input)
 {
 	FILE *fp;
 	char buff[BUFF], source[BUFF];
@@ -253,12 +290,17 @@ inline int readChars()
 	errno = 0;
 
 	//get filename
-	fprintf(stdout, "\nInput chars source file:\t");
-	if (fgets(source, BUFF-1, stdin) == NULL) {
-		fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
-		freeExit();
-		exit (EXIT_FAILURE);
+	if (input == NULL) {	//from user input
+		fprintf(stdout, "\nInput chars source file:\t");
+		if (fgets(source, BUFF-1, stdin) == NULL) {
+			fprintf(stderr, "Error reading input: %s.\n", strerror(errno));
+			freeExit();
+			exit (EXIT_FAILURE);
+			}
 	}
+	else 	//from command line (only for Windows multi flow execution)
+		strcpy(source, input);
+
 	if (source[strlen(source)-1] == '\n')
 		source[strlen(source)-1] = '\0';
 	if ((fp = fopen(source, "r")) == NULL) {
@@ -314,8 +356,12 @@ inline void freeExit()
 	if (pchars != chars)
 		free(pchars);
 	free(word);
-	/* Disabled fclose() due to high load with big files - To re-enable uncomment also semaphore init in initFork() !
+
+#ifdef WINZOZ   //at the moment, close file ONLY under Windows
+	/* Disabled fclose() in Linux due to high load with big files - To re-enable uncomment also semaphore init in initFork() ! */
 	if (mode == 1 && fout != NULL && fout != stdout) {
+		fclose(fout);
+/*
 		//avoid program lock on file closing
 #ifdef __linux__
 		psemWait(fileSem);
@@ -325,7 +371,10 @@ inline void freeExit()
 		psemSignal(fileSem);
 		psemDestroy(fileSem);
 #endif //__linux__
-	}*/
+*/
+	}
+#endif // WINZOZ
+
 #ifdef __linux__
 	psemDestroy(sigSem);
 #endif //__linux__
@@ -627,74 +676,74 @@ void sigHandler(int sig)
 /* Watch thread caller */
 inline void watchThread(int id)
 {
-    int ris;
-    errno = 0;
+	int ris;
+	errno = 0;
 
-    //set data
-    thrId = id;
-    //create thread
-    ris = pthread_create(&tid, NULL, threadRunner, NULL);
-    if (ris) {
-      fprintf(stderr, "Error creating thread %d (%d): %s\n", id, ris, strerror(errno));
-      freeExit();
-      exit (EXIT_FAILURE);
-    }
+	//set data
+	thrId = id;
+	//create thread
+	ris = pthread_create(&tid, NULL, threadRunner, NULL);
+	if (ris) {
+	  fprintf(stderr, "Error creating thread %d (%d): %s\n", id, ris, strerror(errno));
+	  freeExit();
+	  exit (EXIT_FAILURE);
+	}
 }
 
 
 /* Watch thread */
 static void *threadRunner()
 {
-    double locSeq, totSeq, perc, seqSec, totTime, oldSize;
-    struct timespec timer;
-    sigset_t sigSet;
+	double locSeq, totSeq, perc, seqSec, totTime, oldSize;
+	struct timespec timer;
+	sigset_t sigSet;
 
-    //reset thread's signals, to ignore previously settings
+	//reset thread's signals, to ignore previously settings
 	sigemptyset(&sigSet);
 	sigaddset(&sigSet, SIGINT);
 	sigaddset(&sigSet, SIGQUIT);
 	pthread_sigmask(SIG_BLOCK, &sigSet, NULL);
 
-    //initialize thread semaphore
-    sem_init(&semThr, 0, 0);
-    //set signal handler (use SIGUSR1)
-    signal(SIGUSR1, sigHandler);
+	//initialize thread semaphore
+	sem_init(&semThr, 0, 0);
+	//set signal handler (use SIGUSR1)
+	signal(SIGUSR1, sigHandler);
 
-    //init data
-    oldSize = 0;
-    totSeq = SEQPART();
+	//init data
+	oldSize = 0;
+	totSeq = SEQPART();
 
-    //short timeout
+	//short timeout
 	sleep(SLEPTM);
 	locSeq = numSeq;
 	perc = (numSeq / totSeq) * 100;
-    while (perc < MAXPERC) {
-        //time elapsed until now
-        clock_gettime(CLOCK_MONOTONIC, &timer);
-        totTime = SUMTIME(timer, tsBegin) - lag;
-        //stats
+	while (perc < MAXPERC) {
+		//time elapsed until now
+		clock_gettime(CLOCK_MONOTONIC, &timer);
+		totTime = SUMTIME(timer, tsBegin) - lag;
+		//stats
 		seqSec = locSeq / SLEPTM;
 		locSeq = numSeq;
 
-        //print stats
-        fprintf(stdout, "   Worker %2d: %5.2lf%% (%.0lf seq), ", thrId, perc, numSeq);
-        secstoHuman(totTime, FALSE);
-        fprintf(stdout, ", %.1lf seq/s, ETA ", seqSec);
-        secstoHuman(totSeq/seqSec-totTime, FALSE);
-        //in mode 1, print file size
-        if (mode == 1)
-        	filesizeStats(SLEPTM, &oldSize);
-        fprintf(stdout, "\n");
+		//print stats
+		fprintf(stdout, "   Worker %2d: %5.2lf%% (%.0lf seq), ", thrId, perc, numSeq);
+		secstoHuman(totTime, FALSE);
+		fprintf(stdout, ", %.1lf seq/s, ETA ", seqSec);
+		secstoHuman(totSeq/seqSec-totTime, FALSE);
+		//in mode 1, print file size
+		if (mode == 1)
+			filesizeStats(SLEPTM, &oldSize);
+		fprintf(stdout, "\n");
 
-        //sleep a while
+		//sleep a while
 		sleep(SLEPTM);
 		//more stats
 		locSeq = numSeq - locSeq;
 		perc = (numSeq / totSeq) * 100;
-    }
+	}
 
-    sem_destroy(&semThr);
-    pthread_exit(NULL);
+	sem_destroy(&semThr);
+	pthread_exit(NULL);
 }
 
 #endif //__linux__

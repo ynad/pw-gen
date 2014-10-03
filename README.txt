@@ -3,7 +3,7 @@ Pw-Gen - Sequences generator
 
 Version:
 --------
-1.2.7 (2014-05-28)
+1.2.8 (2014-10-02)
 See ChangeLog for details. 
 
     TODO:

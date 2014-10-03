@@ -13,7 +13,7 @@
 
    License     [GPLv2, see LICENSE.md]
 
-   Revision    [2014-05-28]
+   Revision    [2014-09-22]
 
 ******************************************************************************/
 
@@ -41,7 +41,7 @@ inline void setOper();
 inline void argCheck(int argc, char **argv);
 
 /* Read set of chars from file */
-inline int readChars();
+inline int readChars(char *);
 
 /* Open output n-file */
 inline void fileDict(int);

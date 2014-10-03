@@ -1,3 +1,7 @@
+Version 1.2.8 (changes from 1.2.7) - Released 02/10/2014:
+* Windows multi-flow execution: separate CMD for each CPU thread
+* Fixed treatment of last element in generatorSingleI()
+
 Version 1.2.7 (changes from 1.2.6) - Released 28/05/2014:
 * Same print format for time elapsed as for estimated time left
 * "_FILE_OFFSET_BITS=64" define moved again to Makefile
